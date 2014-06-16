@@ -10,6 +10,10 @@
 
 #include <common/mavlink.h>
 
+#include "Mission.h"
+
+class Mission;
+
 class Comm {
 public:
     Comm();
@@ -22,30 +26,30 @@ public:
     bool SetupPort(int baud, int data_bits, int stop_bits, bool parity, bool hardware_control);
     void ClosePort();
 
-    int SendPing();
-    int SendNextCommand();
+    // testing... delete soon
+//    int SendPing();
+//    int SendSomeStuff();
+
+    int SendMissionSetCurrent(int index);
     int SendSetMode();
-    int SendSomeStuff();
-    int ReadMessages();
     int SendMissionRequestList();
     int SendMissionRequest(int itemToRequest);
+    int SendMissionItem( mavlink_mission_item_t item);
+    
+    int ReadMessages(Mission *mission);
 
 
 
 private:
     int sysid;             ///< The unique system id of this MAV, 0-127. Has to be consistent across the system
     int compid;
+    int target_compid;
     bool silent;              ///< Whether console output should be enabled
     bool verbose;             ///< Enable verbose output
     bool debug;               ///< Enable debug functions and output
     int fd;             /* File descriptor for the port */
 
-    int missionCount;
-    int missionItemsReceived;
-    
     char buf[300];
-    unsigned loopcounter;
-    int next_mission;
     mavlink_status_t lastStatus;
 
     void ReceiveMsgHeartbeat(mavlink_message_t message);
@@ -54,9 +58,9 @@ private:
     void ReceiveMsgStatusText(mavlink_message_t message);
     void ReceiveMsgGlobalPosition(mavlink_message_t message);
     void ReceiveMsgLocalPositionNED(mavlink_message_t message);
-    void ReceiveMsgMissionCount(mavlink_message_t message);
-    void ReceiveMsgMissionCurrent(mavlink_message_t message);
-    void ReceiveMsgMissionItem(mavlink_message_t message);
+    void ReceiveMsgMissionCount(  mavlink_message_t message, Mission *mission);
+    void ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission);
+    void ReceiveMsgMissionItem(   mavlink_message_t message, Mission *mission);
     void ReceiveMsgGPSStatus(mavlink_message_t message);
 
 };

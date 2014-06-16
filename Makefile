@@ -1,6 +1,6 @@
 all: nibble
 
-nibble: nibble.o Comm.o Mission.o
+nibble: Comm.o Mission.o nibble.o
 	g++ nibble.o Comm.o Mission.o -o nibble
 
 nibble.o: nibble.cpp

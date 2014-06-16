@@ -3,6 +3,11 @@
  * Author: sondra
  * 
  * Created on June 15, 2014, 12:38 PM
+ *
+ * Connect to and communicate with our copter using MAVLink.
+ *
+ * The serial interface routines are based on c_uart_interface_example, an
+ * example in the public domain by Lorenz Meier, <lm@inf.ethz.ch>
  */
 
 #include "Comm.h"
@@ -36,18 +41,13 @@ using namespace std;
 
 Comm::Comm() {
     sysid = 1;             ///< The unique system id of this MAV, 0-127. Has to be consistent across the system
-    compid = 2;
+    target_compid = 1;     // pixhawk
+    compid = 2;            // me
     silent = false;              ///< Wether console output should be enabled
     verbose = false;             ///< Enable verbose output
     debug = false;               ///< Enable debug functions and output
-    loopcounter = 0;
-    next_mission = 0;
     lastStatus.packet_rx_drop_count = 0;
     fd = -1;  // not initialized
-
-    missionCount = -1;
-    missionItemsReceived = 0;
-
 }
 
 Comm::Comm(const Comm& orig) {
@@ -334,6 +334,8 @@ void Comm::ClosePort()
 	close(fd);
 }
 
+// Not currently supported.
+/*
 int Comm::SendPing()
 {
         struct timeval tv;		  ///< System time
@@ -345,8 +347,8 @@ int Comm::SendPing()
 
 	ping.time_usec = 1402800301L * 1e6;
 	ping.seq = next_mission;
-	ping.target_system    = 0;
-	ping.target_component = 0;
+	ping.target_system    = sysid;
+	ping.target_component = target_compid;
 
 	mavlink_msg_ping_encode( sysid, compid, &message, &ping);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
@@ -354,32 +356,30 @@ int Comm::SendPing()
 
 //	printf(" tv_sec = %d, tv_usec = %d\n", tv.tv_sec, tv.tv_usec);
 	printf("------------------------before write - ping usec = %lld, seq = %d, len %d\n", ping.time_usec, ping.seq, len );
-	/* write packet via serial link */
+	// write packet via serial link
 	write(fd, buf, len);
-	/* wait until all data has been written */
+	// wait until all data has been written 
 	tcdrain(fd);
 	printf("------------------------after write\n");
 }
+*/
 
-int Comm::SendNextCommand()
+int Comm::SendMissionSetCurrent(int index)
 {
 	mavlink_message_t message;
-
-	next_mission++;
 	mavlink_mission_set_current_t sc;
-	sc.seq = next_mission;
-	sc.target_system = 1;
-	sc.target_component = 0;
+	sc.seq              = index;
+	sc.target_system    = sysid;
+	sc.target_component = target_compid;
 
 	mavlink_msg_mission_set_current_encode( sysid, compid, &message, &sc);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
 
-	printf("------------------------before mission set write - next_mission = %d\n", next_mission);
+	printf("------------------------ mission set current - index = %d\n", index);
 	/* write packet via serial link */
 	write(fd, buf, len);
 	/* wait until all data has been written */
 	tcdrain(fd);
-	printf("------------------------after mission set write\n");
 }
 
 int Comm::SendSetMode()
@@ -407,7 +407,7 @@ int Comm::SendMissionRequestList() {
 
 	mavlink_mission_request_list_t mrl;
 	mrl.target_system = sysid;
-        mrl.target_component = compid;
+        mrl.target_component = target_compid;
 
 	mavlink_msg_mission_request_list_encode( sysid, compid, &message, &mrl);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
@@ -426,7 +426,7 @@ int Comm::SendMissionRequest(int seq) {
 	mavlink_mission_request_t mr;
         mr.seq = seq;
 	mr.target_system = sysid;
-        mr.target_component = 1;
+        mr.target_component = target_compid;
 
 	mavlink_msg_mission_request_encode( sysid, compid, &message, &mr);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
@@ -439,6 +439,20 @@ int Comm::SendMissionRequest(int seq) {
 	printf("------------------------after mission request write\n");
 }
 
+int Comm::SendMissionItem( mavlink_mission_item_t item) {
+	mavlink_message_t message;
+
+	mavlink_msg_mission_item_encode( sysid, compid, &message, &item);
+	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
+
+	printf("------------------------send mission item with lat %f, long %f, alt %f, current = %d\n", item.x, item.y, item.z, item.current );
+	/* write packet via serial link */
+	write(fd, buf, len);
+	/* wait until all data has been written */
+	tcdrain(fd);
+}
+
+/*
 int Comm::SendSomeStuff()
 {
 	mavlink_status_t lastStatus;
@@ -446,7 +460,7 @@ int Comm::SendSomeStuff()
 
         if (loopcounter>3000 && loopcounter % 1000 == 0) {
 
-            printf("-------------------------In SendSomeStuff, missionCount = %d, missingItemsReceived = %d\n", missionCount, missionItemsReceived);
+            printf("-------------------------In SendSomeStuff, missionCount = %d, missionItemsReceived = %d\n", missionCount, missionItemsReceived);
             if (missionCount == -1)
                 SendMissionRequestList();
 
@@ -455,16 +469,15 @@ int Comm::SendSomeStuff()
 
         }
 
-//        if (loopcounter % 100 == 0) {
 //		SendPing();
 //                SendSetMode();
 //                SendNextCommand();
-//	}
+
 
 	loopcounter++;
 	return 0;
 }
-
+*/
 
 /**
  * @brief Serial function
@@ -472,11 +485,10 @@ int Comm::SendSomeStuff()
  * This function blocks waiting for serial data in it's own thread
  * and forwards the data once received.
  */
-int Comm::ReadMessages()
+int Comm::ReadMessages(Mission *mission)
 {
 
 	// Blocking wait for new data
-//	while (1)
 	{
 		//if (debug) printf("Checking for new data on serial port\n");
 		// Block until data is available, read only one byte to be able to continue immediately
@@ -552,9 +564,9 @@ int Comm::ReadMessages()
 				case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
 				case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message);   break;
 				case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
-				case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(message);     break;
-				case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message);   break;
-				case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(message);      break;
+				case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(  message, mission); break;
+				case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message, mission); break;
+				case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(   message, mission); break;
 				case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
 			}
 
@@ -649,7 +661,7 @@ void Comm::ReceiveMsgLocalPositionNED(mavlink_message_t message) {
         printf("\n");
 }
 
-void Comm::ReceiveMsgMissionCount(mavlink_message_t message) {
+void Comm::ReceiveMsgMissionCount(mavlink_message_t message, Mission *mission) {
         mavlink_mission_count_t mc;
         mavlink_msg_mission_count_decode(&message, &mc);
 
@@ -659,10 +671,10 @@ void Comm::ReceiveMsgMissionCount(mavlink_message_t message) {
         printf("\t target_component: %d\n", mc.target_component);
         printf("\n");
 
-        missionCount = mc.count;
+        mission->SetMissionCount(mc.count);
 }
 
-void Comm::ReceiveMsgMissionCurrent(mavlink_message_t message) {
+void Comm::ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission) {
         mavlink_mission_current_t mc;
         mavlink_msg_mission_current_decode(&message, &mc);
 
@@ -671,12 +683,12 @@ void Comm::ReceiveMsgMissionCurrent(mavlink_message_t message) {
         printf("\n");
 }
 
-void Comm::ReceiveMsgMissionItem(mavlink_message_t message) {
+void Comm::ReceiveMsgMissionItem(mavlink_message_t message, Mission *mission) {
         mavlink_mission_item_t mi;
         mavlink_msg_mission_item_decode(&message, &mi);
 
         printf("Got message MISSION ITEM\n");
-        printf("\t seq: %d.  Expected %d\n", mi.seq, missionItemsReceived);
+        printf("\t seq: %d\n", mi.seq);
         printf("\t param1: %f\n", mi.param1);
         printf("\t param2: %f\n", mi.param2);
         printf("\t param3: %f\n", mi.param3);
@@ -692,9 +704,7 @@ void Comm::ReceiveMsgMissionItem(mavlink_message_t message) {
         printf("\t autocontinue: %d\n", mi.autocontinue);
         printf("\n");
 
-        // Make sure it is the mission item we wanted.  Not a duplicate.
-        if (mi.seq == missionItemsReceived)
-            missionItemsReceived++;
+        mission->StoreMissionItem(mi);
 }
 
 void Comm::ReceiveMsgGPSStatus(mavlink_message_t message) {

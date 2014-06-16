@@ -10,18 +10,31 @@
 
 #include <common/mavlink.h>
 
+#include "Comm.h"
+
+class Comm;
+
 class Mission {
 public:
     Mission();
     Mission(const Mission& orig);
     virtual ~Mission();
 
+    int GetMissionItemCount();
+    int GetReceivedMissionItemCount();
+    void SetMissionCount( int missionCount );
     bool StoreMissionItem( mavlink_mission_item_t item);
+    void PrintMission();
+    void HandleMission(Comm *comm);
 private:
 
-    int reportedMissionItemCount;
-    int originalMissionItemCount;
-    mavlink_mission_item_t originalMission[50];
+    enum MissionState { BOOTING, INITIALIZE, AUTO, GUIDED };
+
+    MissionState currState;
+    int loopCounter;
+    int missionItemCount;
+    int receivedMissionItemCount;
+    mavlink_mission_item_t mission[50];
 
 };
 
