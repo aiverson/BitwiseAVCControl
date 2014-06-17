@@ -152,13 +152,18 @@ void Mission::HandleMission(Comm *comm) {
 
 
             // Only for testing purposes...
-            if (loopCounter % 5000 == 0) {
+            if (loopCounter % 1000 == 0) {
+                TestBalloonMutex();
+
+
+/*
                 if (currFlightMode != AUTO) {
                     // if not in mode AUTO, switch to it for testing...
                     printf("-------------------------Requesting mode change to AUTO.\n" );
                     comm->SendSetMode(int (AUTO) );
                     comm->SendMissionSetCurrent(1);
                 }
+*/
             }
             break;
 
@@ -266,4 +271,18 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 
     // Return false if the balloon is gone.
     return false;
+}
+
+void Mission::TestBalloonMutex()
+{
+      balloonLocation_t loc;
+      if(pthread_mutex_trylock(&locationLock)) {
+          loc = location;
+          pthread_mutex_unlock(&locationLock);
+      }
+
+      printf("In TestBalloonMutex, range = %f, phi = %f, theta = %f, sec = %ld, usec = %ld\n",
+        location.range, location.phi, location.theta, (long) location.timestamp.tv_sec, (long) location.timestamp.tv_usec);
+
+    
 }

@@ -1,6 +1,7 @@
 #ifndef BALLOON_LOCATION_H
 #define BALLOON_LOCATION_H
 
+#include <sys/time.h>
 #include <pthread.h>
 
 typedef struct balloonLocation {
@@ -10,8 +11,8 @@ typedef struct balloonLocation {
   struct timeval timestamp;
 } balloonLocation_t;
 
-pthread_mutex_t locationLock = PTHREAD_MUTEX_INITIALIZER;
+extern pthread_mutex_t locationLock;
 
-balloonLocation_t location;
+extern balloonLocation_t location;
 
 #endif

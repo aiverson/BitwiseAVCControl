@@ -52,6 +52,7 @@ private:
 
     bool IsBalloonNearby();
     bool CalcBalloonLocation(mavlink_mission_item_t *item);
+    void TestBalloonMutex();
 
 };
 
