@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     int rc;
 
     printf( "Starting Computer Vision pthread.");
-    pthread_mutex_init(&locationLock, NULL);
+    //pthread_mutex_init(&locationLock, NULL);
     location.range = -1.0;
     location.phi = 0.0;
     location.theta = 0.0;

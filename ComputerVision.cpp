@@ -190,7 +190,7 @@ void ComputerVision::ProcessFrame(gpu::GpuMat &hue, gpu::GpuMat &sat, gpu::GpuMa
 
     if (contourArea(contours[n]) >= areaRatio * radius*radius*3.1415926) {
       circle(debugOverlay, center, radius, Scalar(0, 255, 0), 2);
-      double range = BALLOON_RADIUS * sin(radius*PIXEL_ANGLE);
+      double range = BALLOON_RADIUS / sin(radius*PIXEL_ANGLE);
       if (range < tempLocation.range || tempLocation.range <= 0) {
 	tempLocation.range = range;
 	tempLocation.phi = (center.y - FEED_HEIGHT/2) * PIXEL_ANGLE;

@@ -464,6 +464,7 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
  */
 int Comm::ReadMessages(Mission *mission)
 {
+	printf( "Entering ReadMessages\n");
 
 	// Blocking wait for new data
 	{
@@ -549,6 +550,7 @@ int Comm::ReadMessages(Mission *mission)
 
 		}
 	}
+	printf( "Leaving ReadMessages\n");
 	return 0;
 }
 

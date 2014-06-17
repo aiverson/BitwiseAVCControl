@@ -9,7 +9,8 @@
 #include <stdio.h>
 
 Mission::Mission() {
-    currState = BOOTING;
+  currState = BOOTING;
+  //currState = PREPROGRAMMED_MISSION;
     receivedMissionItemCount = 0;
     missionItemCount = -1;
     loopCounter = 0;
@@ -266,8 +267,36 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
     // FINISH...
 
     // Get a mutex to check the data structure shared with the computer vision code.
+  pthread_mutex_lock(&locationLock);
     // Use our current position and attitude, along with the calcuated offsets to
-    // the balloon to calculate lat/long/alt of balloon.
+  // the balloon to calculate lat/long/alt of balloon.
+  constexpr double m1 = 111132.92;
+  constexpr double m2 = -559.82;
+  constexpr double m3 = 1.175;
+  constexpr double m4 = 0.0023;
+  constexpr double p1 = 111412;
+  constexpr double p2 = -93.5;
+  constexpr double p3 = 0.118;
+
+  double lat = globalPosition.latitude*1.0e-7;
+  double lon = globalPosition.longitude*1.0e-7;
+  double alt;
+  double pitch;
+  double yaw;
+  double rho = location.range;
+  double phi = location.phi;
+  double theta = location.theta;
+  
+  double latlen = m1+m2*cos(2*latrad)+m3*cos(4*latrad)+m4*cos(6*latrad);
+  double lonlen = p1*cos(latrad)+p2*cos(3*latrad)+p3*cos(latrad);
+
+  double newlat = rho*cos(phi+pitch)*sin(theta+yaw)/latlen+lat;
+  double newlon = rho*cos(phi+pitch)*cos(theta+yaw)/lonlen+lon;
+  double newalt = rho*sin(phi+pitch)+alt;
+  
+  item->x = newlat;
+  item->y = newlon;
+  item->z = newalt;
 
     // Return false if the balloon is gone.
     return false;
@@ -276,10 +305,12 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 void Mission::TestBalloonMutex()
 {
       balloonLocation_t loc;
+	printf("Before requesting mutex.\n");
       if(pthread_mutex_trylock(&locationLock)) {
           loc = location;
           pthread_mutex_unlock(&locationLock);
       }
+	printf("After releasing mutex.\n");
 
       printf("In TestBalloonMutex, range = %f, phi = %f, theta = %f, sec = %ld, usec = %ld\n",
         location.range, location.phi, location.theta, (long) location.timestamp.tv_sec, (long) location.timestamp.tv_usec);
