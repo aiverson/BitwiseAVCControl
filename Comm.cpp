@@ -382,24 +382,23 @@ int Comm::SendMissionSetCurrent(int index)
 	tcdrain(fd);
 }
 
-int Comm::SendSetMode()
+int Comm::SendSetMode(int mode)
 {
 	mavlink_message_t message;
 
 	mavlink_set_mode_t sm;
-	sm.custom_mode = 3;
-	sm.target_system = sysid;
-	sm.base_mode = 5; // must have bit 1 set for command to work.
+	sm.custom_mode = mode;    // using 3 for auto, 4 for guided
+	sm.target_system = sysid;  // applies to all components, so only need target_system, not target_component.
+	sm.base_mode = 1;  // used 5 earlier but 1 should work... // must have bit 1 set for command to work.
 
 	mavlink_msg_set_mode_encode( sysid, compid, &message, &sm);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
 
-	printf("------------------------before set mode write\n" );
+	printf("------------------------set mode to %d\n", mode );
 	/* write packet via serial link */
 	write(fd, buf, len);
 	/* wait until all data has been written */
 	tcdrain(fd);
-	printf("------------------------after set mode write\n");
 }
 
 int Comm::SendMissionRequestList() {
@@ -442,6 +441,9 @@ int Comm::SendMissionRequest(int seq) {
 int Comm::SendMissionItem( mavlink_mission_item_t item) {
 	mavlink_message_t message;
 
+        item.target_system    = sysid;
+        item.target_component = target_compid;
+
 	mavlink_msg_mission_item_encode( sysid, compid, &message, &item);
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
 
@@ -452,32 +454,6 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
 	tcdrain(fd);
 }
 
-/*
-int Comm::SendSomeStuff()
-{
-	mavlink_status_t lastStatus;
-	lastStatus.packet_rx_drop_count = 0;
-
-        if (loopcounter>3000 && loopcounter % 1000 == 0) {
-
-            printf("-------------------------In SendSomeStuff, missionCount = %d, missionItemsReceived = %d\n", missionCount, missionItemsReceived);
-            if (missionCount == -1)
-                SendMissionRequestList();
-
-            else if (missionItemsReceived < missionCount)
-                SendMissionRequest(missionItemsReceived);
-
-        }
-
-//		SendPing();
-//                SendSetMode();
-//                SendNextCommand();
-
-
-	loopcounter++;
-	return 0;
-}
-*/
 
 /**
  * @brief Serial function
@@ -558,11 +534,11 @@ int Comm::ReadMessages(Mission *mission)
 
 			switch (message.msgid)
 			{
-				case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message);        break;
+				case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message, mission); break;
 				case MAVLINK_MSG_ID_SET_MODE:            ReceiveMsgSetMode(message);          break;
 				case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
 				case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
-				case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message);   break;
+				case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message, mission); break;
 				case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
 				case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(  message, mission); break;
 				case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message, mission); break;
@@ -575,8 +551,8 @@ int Comm::ReadMessages(Mission *mission)
 	return 0;
 }
 
-void Comm::ReceiveMsgHeartbeat(mavlink_message_t message) {
-
+void Comm::ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission) {
+        FlightMode mode;
         mavlink_heartbeat_t hb;
         mavlink_msg_heartbeat_decode(&message, &hb);
 
@@ -588,6 +564,17 @@ void Comm::ReceiveMsgHeartbeat(mavlink_message_t message) {
         printf("\t system_status: %d\n", hb.system_status);
         printf("\t mavlink_version: %d\n", hb.mavlink_version);
         printf("\n");
+
+        if (hb.base_mode == 81 && hb.custom_mode == 0)
+           mode = STABILIZE;
+        else if (hb.base_mode == 89 && hb.custom_mode == 3)
+            mode = AUTO;
+        else if (hb.base_mode == 89 && hb.custom_mode == 4)
+            mode = GUIDED;
+        else
+            mode = OTHER;
+
+        mission->StoreCurrentMode(mode);
 }
 
 void Comm::ReceiveMsgSetMode(mavlink_message_t message) {
@@ -629,7 +616,7 @@ void Comm::ReceiveMsgStatusText(mavlink_message_t message) {
         printf("\n");
 }
 
-void Comm::ReceiveMsgGlobalPosition(mavlink_message_t message) {
+void Comm::ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission) {
         mavlink_global_position_int_t gp;
         mavlink_msg_global_position_int_decode(&message, &gp);
 
@@ -644,6 +631,8 @@ void Comm::ReceiveMsgGlobalPosition(mavlink_message_t message) {
         printf("\t vz: %d, %f\n", gp.vz, ((double)gp.vz)/100 );
         printf("\t hdg: %d, %f\n", gp.hdg, ((double)gp.hdg)/100 );
         printf("\n");
+
+        mission->StoreGlobalPosition(gp);
 }
 
 void Comm::ReceiveMsgLocalPositionNED(mavlink_message_t message) {
@@ -681,6 +670,8 @@ void Comm::ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission)
         printf("Got message MISSION CURRENT\n");
         printf("\t seq: %d\n", mc.seq);
         printf("\n");
+
+        mission->StoreCurrentMissionIndex(mc.seq);
 }
 
 void Comm::ReceiveMsgMissionItem(mavlink_message_t message, Mission *mission) {

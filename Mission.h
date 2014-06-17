@@ -11,8 +11,12 @@
 #include <common/mavlink.h>
 
 #include "Comm.h"
+#include <sys/time.h>
+#include <time.h>
 
 class Comm;
+
+enum FlightMode { STABILIZE = 0, AUTO = 3, GUIDED = 4, OTHER = 99};
 
 class Mission {
 public:
@@ -20,21 +24,30 @@ public:
     Mission(const Mission& orig);
     virtual ~Mission();
 
-    int GetMissionItemCount();
-    int GetReceivedMissionItemCount();
     void SetMissionCount( int missionCount );
     bool StoreMissionItem( mavlink_mission_item_t item);
+    void StoreGlobalPosition( mavlink_global_position_int_t pos );
+    void StoreCurrentMissionIndex( int index );
+    void StoreCurrentMode(FlightMode mode);
     void PrintMission();
+    void PrintGlobalPosition();
     void HandleMission(Comm *comm);
 private:
 
-    enum MissionState { BOOTING, INITIALIZE, AUTO, GUIDED };
+    enum MissionState { BOOTING, INITIALIZE, PREPROGRAMMED_MISSION, CHASING_BALLOON };
 
     MissionState currState;
     int loopCounter;
     int missionItemCount;
     int receivedMissionItemCount;
     mavlink_mission_item_t mission[50];
+
+    mavlink_global_position_int_t globalPosition;  // values are scaled integers
+    int  currMissionIndex;
+    int  missionIndexWhenReturnToAuto;
+    struct timeval startTime;
+
+    FlightMode currFlightMode;
 
 };
 

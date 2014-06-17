@@ -21,7 +21,6 @@ public:
     virtual ~Comm();
 
     int  Startup(int argc, char **argv);
-
     int  OpenPort(const char* port);
     bool SetupPort(int baud, int data_bits, int stop_bits, bool parity, bool hardware_control);
     void ClosePort();
@@ -31,7 +30,7 @@ public:
 //    int SendSomeStuff();
 
     int SendMissionSetCurrent(int index);
-    int SendSetMode();
+    int SendSetMode(int mode);
     int SendMissionRequestList();
     int SendMissionRequest(int itemToRequest);
     int SendMissionItem( mavlink_mission_item_t item);
@@ -52,17 +51,18 @@ private:
     char buf[300];
     mavlink_status_t lastStatus;
 
-    void ReceiveMsgHeartbeat(mavlink_message_t message);
+    void ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission);
     void ReceiveMsgSetMode(mavlink_message_t message);
-    void ReceiveMsgPing(mavlink_message_t message);
     void ReceiveMsgStatusText(mavlink_message_t message);
-    void ReceiveMsgGlobalPosition(mavlink_message_t message);
-    void ReceiveMsgLocalPositionNED(mavlink_message_t message);
+    void ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCount(  mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionItem(   mavlink_message_t message, Mission *mission);
     void ReceiveMsgGPSStatus(mavlink_message_t message);
 
+    // Not being sent
+    void ReceiveMsgPing(mavlink_message_t message);
+    void ReceiveMsgLocalPositionNED(mavlink_message_t message);
 };
 #endif	/* COMM_H */
 
