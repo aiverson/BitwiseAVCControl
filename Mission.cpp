@@ -297,9 +297,9 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 
   double lat = globalPosition.latitude*1.0e-7;
   double lon = globalPosition.longitude*1.0e-7;
-  double alt;
-  double pitch;
-  double yaw;
+  double alt = globalPosition.relative_alt/1000.0;
+  double pitch = attitude.pitch;
+  double yaw = attitude.yaw;
   double rho = location.range;
   double phi = location.phi;
   double theta = location.theta;
