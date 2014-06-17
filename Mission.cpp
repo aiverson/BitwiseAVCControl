@@ -142,22 +142,18 @@ void Mission::HandleMission(Comm *comm) {
 
         case PREPROGRAMMED_MISSION:
 
-            // If find a balloon target, switch to guided flight mode and CHASING_BALLOON state.
-            // Store time that started chasing balloon.  Store current mission index, so can return to it.
+            // We are in a preprogrammed part of the mission.  Watch for our special
+            // indicators that a balloon should be near.
 
             // May want to insert LOITER commands (or some other flag) to indicate we should
-            // start searching for balloons.  In this case, we should return to the current mission index + 1.
+            // start searching for balloons.  
+
+            // Store time that we started searching for a balloon.  Switch to mode SEARCHING_FOR_BALOON.
 
 
-            if (loopCounter % 2000 == 0) {
-                if (currFlightMode == AUTO) {
-                    printf("-------------------------Requesting mode change to GUIDED.\n" );
-                    comm->SendSetMode(int (GUIDED));
-                    missionIndexWhenReturnToAuto = currMissionIndex;
-                    gettimeofday(&startTime, NULL);
-
-                    currState = CHASING_BALLOON;
-                } else {
+            // Only for testing purposes...
+            if (loopCounter % 5000 == 0) {
+                if (currFlightMode != AUTO) {
                     // if not in mode AUTO, switch to it for testing...
                     printf("-------------------------Requesting mode change to AUTO.\n" );
                     comm->SendSetMode(int (AUTO) );
@@ -166,11 +162,45 @@ void Mission::HandleMission(Comm *comm) {
             }
             break;
 
+        case SEARCHING_FOR_BALLOON:
+            // We are still in auto mode flying a preprogrammed mission, but we are
+            // also expecting to find a balloon in this segment of the mission.
+
+            // If we find a reasonably close balloon, switch to guided mode and go pop it.
+            // If find a balloon target, switch to guided flight mode and CHASING_BALLOON state.
+
+            // If we do not find a balloon in a reasonable amount of time, switch
+            // back to PREPROGRAMMED_MISSION mode.
+
+            if (loopCounter % 5000 == 0) {
+                if (currFlightMode == AUTO) {
+
+                    if (IsBalloonNearby()) {
+
+                        printf("-------------------------Requesting mode change to GUIDED.\n" );
+                        comm->SendSetMode(int (GUIDED));
+                        missionIndexWhenReturnToAuto = currMissionIndex;
+                        gettimeofday(&startTime, NULL);
+
+                        currState = CHASING_BALLOON;
+                    }
+                }
+            }
+
+            break;
         case CHASING_BALLOON:
+
+            // FINISH...
 
             // Periodically compare newly calculated balloon location with last balloon location.
             // If altitude has changed, send waypoint with current = 3.  Changes altitude only
             // If balloon location changed, send waypoint with current = 2.  (i.e., a guided waypoint)
+
+
+            // If balloon disappears (hopefully popped) or time expires, resume the preprogrammed mission,
+            // (i.e., flight mode AUTO and state PREPROGRAMMED_MISSION).  The pixhawk
+
+
 
             if (loopCounter % 2000 == 0) {
                     printf("-------------------------Sending guided wp.\n" );
@@ -179,10 +209,10 @@ void Mission::HandleMission(Comm *comm) {
                     item.param2 = 0;
                     item.param3 = 0;
                     item.param4 = 0;
-                    item.x = 11.11;
-                    item.y = 22.22;
-                    item.z = 33.33;
-                    item.seq = 5;
+                    item.x = 40.52904510;
+                    item.y = -105.109100341797;
+                    item.z = 0.0;
+                    item.seq = 1;
                     item.command = 16;
                     item.frame = 3;
                     item.current = 2;  // 2 = guided waypoint,  3 = altitude change only
@@ -194,7 +224,7 @@ void Mission::HandleMission(Comm *comm) {
                     // After 10 seconds, return to auto
                     struct timeval currTime;
                     gettimeofday(&currTime, NULL);
-                    if (currTime.tv_sec > startTime.tv_sec + 4) {
+                    if (currTime.tv_sec > startTime.tv_sec + 2) {
                             printf("-------------------------Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex+1 );
                             comm->SendSetMode(int (AUTO) );
                             comm->SendMissionSetCurrent(currMissionIndex+1);  // pixhawk probably remembers this, also.
@@ -210,3 +240,30 @@ void Mission::HandleMission(Comm *comm) {
 
 }
 
+bool Mission::IsBalloonNearby()
+{
+  if(pthread_mutex_trylock(&locationLock)) {
+    // FINISH...
+    if(location.range < 0) {
+      return false;
+    }
+    pthread_mutex_unlock(&locationLock);
+  }
+    // Get a mutex to check the data structure shared with the computer vision code.
+    // Determine if it has found a balloon that is acceptably close.
+
+
+    return true;
+}
+
+bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
+{
+    // FINISH...
+
+    // Get a mutex to check the data structure shared with the computer vision code.
+    // Use our current position and attitude, along with the calcuated offsets to
+    // the balloon to calculate lat/long/alt of balloon.
+
+    // Return false if the balloon is gone.
+    return false;
+}

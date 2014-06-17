@@ -64,6 +64,7 @@ int Comm::Startup(int argc, char **argv) {
 //	char *uart_name = (char*)"/dev/ttyUSB0";
 	char *uart_name = (char*)"/dev/ttyACM0";
 	int baudrate = 115200;
+//        int baudrate = 57600;
 	const char *commandline_usage = "\tusage: %s -d <devicename> -b <baudrate> [-v/--verbose] [--debug]\n\t\tdefault: -d %s -b %i\n";
 
 	/* read program arguments */

@@ -11,6 +11,7 @@
 #include <common/mavlink.h>
 
 #include "Comm.h"
+#include "BalloonLocation.h"
 #include <sys/time.h>
 #include <time.h>
 
@@ -34,7 +35,7 @@ public:
     void HandleMission(Comm *comm);
 private:
 
-    enum MissionState { BOOTING, INITIALIZE, PREPROGRAMMED_MISSION, CHASING_BALLOON };
+    enum MissionState { BOOTING, INITIALIZE, PREPROGRAMMED_MISSION, SEARCHING_FOR_BALLOON, CHASING_BALLOON };
 
     MissionState currState;
     int loopCounter;
@@ -48,6 +49,9 @@ private:
     struct timeval startTime;
 
     FlightMode currFlightMode;
+
+    bool IsBalloonNearby();
+    bool CalcBalloonLocation(mavlink_mission_item_t *item);
 
 };
 
