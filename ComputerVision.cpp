@@ -6,6 +6,7 @@
  */
 
 #include "ComputerVision.h"
+#include "BalloonLocation.h"
 
 #include "opencv2/gpu/gpu.hpp"
 #include <sys/time.h>
@@ -50,6 +51,9 @@ const int FEED_WIDTH = 1920;
 const int FEED_HEIGHT = 1080;
 
 #endif
+
+constexpr double BALLOON_RADIUS = 0.5;
+constexpr double PIXEL_ANGLE = 3.1415926/2 / FEED_WIDTH;
 
 using namespace cv;
 
@@ -176,6 +180,7 @@ void ComputerVision::ProcessFrame(gpu::GpuMat &hue, gpu::GpuMat &sat, gpu::GpuMa
   vector< float > circleRadii(contours.size());
   Point2f center;
   float radius;
+  tempLocation = {-1, 0, 0, timea};
   for (int n = 0; n < contours.size(); ++n) {
     minEnclosingCircle(contours[n], center, radius);
 
@@ -185,6 +190,13 @@ void ComputerVision::ProcessFrame(gpu::GpuMat &hue, gpu::GpuMat &sat, gpu::GpuMa
 
     if (contourArea(contours[n]) >= areaRatio * radius*radius*3.1415926) {
       circle(debugOverlay, center, radius, Scalar(0, 255, 0), 2);
+      double range = BALLOON_RADIUS * sin(radius*PIXEL_ANGLE);
+      if (range < tempLocation.range || tempLocation.range <= 0) {
+	tempLocation.range = range;
+	tempLocation.phi = (center.y - FEED_HEIGHT/2) * PIXEL_ANGLE;
+	tempLocation.theta = (center.x - FEED_WIDTH/2) * PIXEL_ANGLE;
+	gettimeofday(&tempLocation.timestamp, NULL);
+      }
     }
   }
 
@@ -245,6 +257,9 @@ void ComputerVision::CvMain() {
     ConvertToHSV(frame, hue, sat, val);
     ProcessFrame(hue, sat, balloonyness, debugOverlay);
     DisplayOutput(frame_host, hue, sat, val, balloonyness, debugOverlay);
+    pthread_mutex_lock(&locationLock);
+    location = tempLocation;
+    pthread_mutex_unlock(&locationLock);
 
     RecordTime(captureTime, &avgCaptureTime);
     RecordTime(conversionTime, &avgConversionTime);
