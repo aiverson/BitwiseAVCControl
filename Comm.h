@@ -9,6 +9,7 @@
 #define	COMM_H
 
 #include <common/mavlink.h>
+#include <sys/select.h>
 
 #include "Mission.h"
 
@@ -47,6 +48,7 @@ private:
     bool verbose;             ///< Enable verbose output
     bool debug;               ///< Enable debug functions and output
     int fd;             /* File descriptor for the port */
+    fd_set read_fds;
 
     char buf[300];
     mavlink_status_t lastStatus;
@@ -55,6 +57,7 @@ private:
     void ReceiveMsgSetMode(mavlink_message_t message);
     void ReceiveMsgStatusText(mavlink_message_t message);
     void ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission);
+    void ReceiveMsgAttitude(      mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCount(  mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionItem(   mavlink_message_t message, Mission *mission);

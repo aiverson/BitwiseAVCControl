@@ -116,8 +116,6 @@ int Comm::Startup(int argc, char **argv) {
 	fflush(stdout);
 
 	int error = OpenPort(uart_name);
-        printf("error = %d", error);
-        printf("fd = %d", fd);
 	if (error == -1)
 	{
 		if (!silent) printf("failure, could not open port.\n");
@@ -138,7 +136,6 @@ int Comm::Startup(int argc, char **argv) {
 	{
 		if (!silent) printf("success.\n");
 	}
-        printf("fd = %d", fd);
 
 	int noErrors = 0;
 	if (fd == -1 || fd == 0)
@@ -184,6 +181,10 @@ int Comm::OpenPort(const char* port)
 	{
 		fcntl(fd, F_SETFL, 0);
 	}
+
+        // Create the set of file descriptors used to prevent the read from blocking.
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
 
 	return (0);
 }
@@ -457,18 +458,31 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
 
 
 /**
- * @brief Serial function
- *
- * This function blocks waiting for serial data in it's own thread
- * and forwards the data once received.
+ * Read and process messages.
  */
 int Comm::ReadMessages(Mission *mission)
 {
+<<<<<<< HEAD
 	printf( "Entering ReadMessages\n");
 
 	// Blocking wait for new data
 	{
 		//if (debug) printf("Checking for new data on serial port\n");
+=======
+    int rv;
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    rv = select( fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (rv == 0) {
+        printf("Timeout trying to read data from Pixhawk.\n");
+        return 0;
+    } else if (rv == -1) {
+        printf("Error trying to read data from Pixhawk.\n");
+        return 0;
+    } else {
+>>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
 		// Block until data is available, read only one byte to be able to continue immediately
 		//char buf[MAVLINK_MAX_PACKET_LEN];
 		uint8_t cp;
@@ -541,16 +555,21 @@ int Comm::ReadMessages(Mission *mission)
 				case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
 				case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
 				case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message, mission); break;
-				case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
+				case MAVLINK_MSG_ID_ATTITUDE:            ReceiveMsgAttitude(      message, mission); break;
 				case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(  message, mission); break;
 				case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message, mission); break;
 				case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(   message, mission); break;
 				case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
+				case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
 			}
 
 		}
 	}
+<<<<<<< HEAD
 	printf( "Leaving ReadMessages\n");
+=======
+
+>>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
 	return 0;
 }
 
@@ -636,6 +655,23 @@ void Comm::ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission)
         printf("\n");
 
         mission->StoreGlobalPosition(gp);
+}
+
+void Comm::ReceiveMsgAttitude(mavlink_message_t message, Mission *mission) {
+        mavlink_attitude_t attitude;
+        mavlink_msg_attitude_decode(&message, &attitude);
+
+        printf("Most recent ATTITUDE\n");
+        printf("\t time_boot_ms: %d\n", attitude.time_boot_ms);
+        printf("\t roll: %f\n", attitude.roll);
+        printf("\t pitch: %f\n", attitude.pitch);
+        printf("\t yaw: %f\n", attitude.yaw);
+        printf("\t rollspeed: %f\n", attitude.rollspeed);
+        printf("\t pitchspeed: %f\n", attitude.pitchspeed);
+        printf("\t yawspeed: %f\n", attitude.yawspeed);
+        printf("\n");
+
+        mission->StoreAttitude(attitude);
 }
 
 void Comm::ReceiveMsgLocalPositionNED(mavlink_message_t message) {

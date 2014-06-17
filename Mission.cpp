@@ -72,11 +72,16 @@ void Mission::PrintMission() {
     printf("\n+++++++++++++++++++++++++++++++++++++++++++\n");
 
     PrintGlobalPosition();
+    PrintAttitude();
 
 }
 
 void Mission::StoreGlobalPosition( mavlink_global_position_int_t pos ) {
     globalPosition = pos;
+}
+
+void Mission::StoreAttitude( mavlink_attitude_t newAttitude ) {
+    attitude = newAttitude;
 }
 
 void Mission::PrintGlobalPosition() {
@@ -91,6 +96,18 @@ void Mission::PrintGlobalPosition() {
         printf("\t vz: %d, %f\n", globalPosition.vz, ((double)globalPosition.vz)/100 );
         printf("\t hdg: %d, %f\n", globalPosition.hdg, ((double)globalPosition.hdg)/100 );
         printf("\n");    
+}
+
+void Mission::PrintAttitude() {
+        printf("Most recent ATTITUDE\n");
+        printf("\t time_boot_ms: %d\n", attitude.time_boot_ms);
+        printf("\t roll: %f\n", attitude.roll);
+        printf("\t pitch: %f\n", attitude.pitch);
+        printf("\t yaw: %f\n", attitude.yaw);
+        printf("\t rollspeed: %f\n", attitude.rollspeed);
+        printf("\t pitchspeed: %f\n", attitude.pitchspeed);
+        printf("\t yawspeed: %f\n", attitude.yawspeed);
+        printf("\n");
 }
 
 void Mission::StoreCurrentMissionIndex( int index ) {
