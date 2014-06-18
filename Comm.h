@@ -9,6 +9,7 @@
 #define	COMM_H
 
 #include <common/mavlink.h>
+#include <sys/select.h>
 
 #include "Mission.h"
 
@@ -47,6 +48,7 @@ private:
     bool verbose;             ///< Enable verbose output
     bool debug;               ///< Enable debug functions and output
     int fd;             /* File descriptor for the port */
+    fd_set read_fds;
 
     char buf[300];
     mavlink_status_t lastStatus;

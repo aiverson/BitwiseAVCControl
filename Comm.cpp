@@ -116,8 +116,6 @@ int Comm::Startup(int argc, char **argv) {
 	fflush(stdout);
 
 	int error = OpenPort(uart_name);
-        printf("error = %d", error);
-        printf("fd = %d", fd);
 	if (error == -1)
 	{
 		if (!silent) printf("failure, could not open port.\n");
@@ -138,7 +136,6 @@ int Comm::Startup(int argc, char **argv) {
 	{
 		if (!silent) printf("success.\n");
 	}
-        printf("fd = %d", fd);
 
 	int noErrors = 0;
 	if (fd == -1 || fd == 0)
@@ -184,6 +181,10 @@ int Comm::OpenPort(const char* port)
 	{
 		fcntl(fd, F_SETFL, 0);
 	}
+
+        // Create the set of file descriptors used to prevent the read from blocking.
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
 
 	return (0);
 }
@@ -457,17 +458,23 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
 
 
 /**
- * @brief Serial function
- *
- * This function blocks waiting for serial data in it's own thread
- * and forwards the data once received.
+ * Read and process messages.
  */
 int Comm::ReadMessages(Mission *mission)
 {
+    int rv;
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
 
-	// Blocking wait for new data
-	{
-		//if (debug) printf("Checking for new data on serial port\n");
+    rv = select( fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (rv == 0) {
+        printf("Timeout trying to read data from Pixhawk.\n");
+        return 0;
+    } else if (rv == -1) {
+        printf("Error trying to read data from Pixhawk.\n");
+        return 0;
+    } else {
 		// Block until data is available, read only one byte to be able to continue immediately
 		//char buf[MAVLINK_MAX_PACKET_LEN];
 		uint8_t cp;
@@ -549,6 +556,7 @@ int Comm::ReadMessages(Mission *mission)
 
 		}
 	}
+
 	return 0;
 }
 
