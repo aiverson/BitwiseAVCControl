@@ -44,8 +44,8 @@ Comm::Comm() {
     target_compid = 1;     // pixhawk
     compid = 2;            // me
     silent = false;              ///< Whether console output should be enabled
-    verbose = true;             ///< Enable verbose output
-    debug = true;               ///< Enable debug functions and output
+    verbose = false;             ///< Enable verbose output
+    debug = false;               ///< Enable debug functions and output
     lastStatus.packet_rx_drop_count = 0;
     fd = -1;  // not initialized
 }
@@ -368,7 +368,6 @@ int Comm::SendPing()
 
 int Comm::SendMissionSetCurrent(int index)
 {
-  return 0;
 	mavlink_message_t message;
 	mavlink_mission_set_current_t sc;
 	sc.seq              = index;
@@ -387,7 +386,6 @@ int Comm::SendMissionSetCurrent(int index)
 
 int Comm::SendSetMode(int mode)
 {
-  return 0;
 	mavlink_message_t message;
 
 	mavlink_set_mode_t sm;
@@ -406,7 +404,6 @@ int Comm::SendSetMode(int mode)
 }
 
 int Comm::SendMissionRequestList() {
-  return 0;
 	mavlink_message_t message;
 
 	mavlink_mission_request_list_t mrl;
@@ -425,7 +422,6 @@ int Comm::SendMissionRequestList() {
 }
 
 int Comm::SendMissionRequest(int seq) {
-  return 0;
 	mavlink_message_t message;
 
 	mavlink_mission_request_t mr;
@@ -445,7 +441,6 @@ int Comm::SendMissionRequest(int seq) {
 }
 
 int Comm::SendMissionItem( mavlink_mission_item_t item) {
-  return 0;
 	mavlink_message_t message;
 
         item.target_system    = sysid;
@@ -504,10 +499,10 @@ int Comm::ReadMessages(Mission *mission)
                     }
                 }
                 lastStatus = status;
-            }
+            
 
             // If a message could be decoded, handle it
-            if (msgReceived) {
+		if (msgReceived) {
                 //if (verbose || debug) std::cout << std::dec << "Received and forwarded serial port message with id " << static_cast<unsigned int>(message.msgid) << " from system " << static_cast<int>(message.sysid) << std::endl;
 
                 // Do not send images over serial port
@@ -551,10 +546,10 @@ int Comm::ReadMessages(Mission *mission)
                         case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
                         case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
                 }
-
-            }
-        } else {
-            if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
+		}
+	    }
+	} else {
+	  if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
         }
 
         return 0;

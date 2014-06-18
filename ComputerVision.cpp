@@ -17,10 +17,10 @@
 
 using namespace cv;
 
-#define FEED_SIZE 4
+#define FEED_SIZE 2
 #define PER_FRAME_TIME_LOGGING 0
-#define SHOW_FEED_WINDOW 1
-#define SHOW_OTHER_WINDOWS 1
+#define SHOW_FEED_WINDOW 0
+#define SHOW_OTHER_WINDOWS 0
 #define SHOW_OUTPUT_WINDOW 1
 #define DRAW_DEBUG_DATA 1
 
@@ -193,7 +193,8 @@ void ComputerVision::ProcessFrame(gpu::GpuMat &hue, gpu::GpuMat &sat, gpu::GpuMa
       double range = BALLOON_RADIUS / sin(radius*PIXEL_ANGLE);
       if (range < tempLocation.range || tempLocation.range <= 0) {
 	tempLocation.range = range;
-	tempLocation.phi = (center.y - FEED_HEIGHT/2) * PIXEL_ANGLE;
+	printf("center.y: %f\n", center.y);
+	tempLocation.phi = (-center.y + FEED_HEIGHT/2) * PIXEL_ANGLE;
 	tempLocation.theta = (center.x - FEED_WIDTH/2) * PIXEL_ANGLE;
 	gettimeofday(&tempLocation.timestamp, NULL);
       }
@@ -257,9 +258,12 @@ void ComputerVision::CvMain() {
     ConvertToHSV(frame, hue, sat, val);
     ProcessFrame(hue, sat, balloonyness, debugOverlay);
     DisplayOutput(frame_host, hue, sat, val, balloonyness, debugOverlay);
+    //printf("CV locking mutex\n");
     pthread_mutex_lock(&locationLock);
+    //printf("CV locked mutex\n");
     location = tempLocation;
     pthread_mutex_unlock(&locationLock);
+    //printf("CV unlocked mutex\n");
 
     RecordTime(captureTime, &avgCaptureTime);
     RecordTime(conversionTime, &avgConversionTime);

@@ -9,7 +9,8 @@
 #include <stdio.h>
 
 Mission::Mission() {
-  currState = BOOTING;
+//  currState = BOOTING;
+  currState = INITIALIZE;
   //currState = PREPROGRAMMED_MISSION;
     receivedMissionItemCount = 0;
     missionItemCount = -1;
@@ -128,7 +129,7 @@ void Mission::HandleMission(Comm *comm) {
     switch (currState) {
         case BOOTING:
             // Give the pixhawk time to startup.
-            if (loopCounter > 3000) {
+            if (loopCounter > 10) {
                 printf("-------------------------Switching from state BOOTING to INITIALIZE\n" );
                 currState = INITIALIZE;
             }
@@ -136,7 +137,7 @@ void Mission::HandleMission(Comm *comm) {
 
         case INITIALIZE:
             // Get the Mission from the pixhawk.
-            if (loopCounter % 1000 == 0) {
+            if (loopCounter % 10 == 0) {
                 printf("-------------------------In INITIALIZE, missionItemCount = %d, receivedMissionItemCount = %d\n",
                         missionItemCount, receivedMissionItemCount);
 
@@ -170,11 +171,12 @@ void Mission::HandleMission(Comm *comm) {
 
 
             // Only for testing purposes...
-            if (loopCounter % 1000 == 0) {
+            if (loopCounter % 5 == 0) {
                 TestBalloonMutex();
 		mavlink_mission_item_t newCommand;
 		CalcBalloonLocation(&newCommand);
-		printf("(%f, %f, %f)", newCommand.x, newCommand.y, newCommand.z);
+		printf("*********(%f, %f, %f)\n", newCommand.x, newCommand.y, newCommand.z);
+		PrintGlobalPosition();
 
 /*
                 if (currFlightMode != AUTO) {
@@ -283,10 +285,12 @@ bool Mission::IsBalloonNearby()
 
 bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 {
+  //printf("entering CalcBalloonLocation\n");
     // FINISH...
 
     // Get a mutex to check the data structure shared with the computer vision code.
   pthread_mutex_lock(&locationLock);
+  //printf("CalcBalloonLocation locked mutex\n");
     // Use our current position and attitude, along with the calcuated offsets to
   // the balloon to calculate lat/long/alt of balloon.
   const double m1 = 111132.92;
@@ -319,6 +323,7 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   item->x = newlat;
   item->y = newlon;
   item->z = newalt;
+  //printf("leaving CalcBalloonLocation\n");
 
     // Return false if the balloon is gone.
     return false;
@@ -327,12 +332,13 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 void Mission::TestBalloonMutex()
 {
       balloonLocation_t loc;
-	printf("Before requesting mutex.\n");
-      if(pthread_mutex_trylock(&locationLock)) {
+      //printf("Before requesting mutex.\n");
+	//if(pthread_mutex_trylock(&locationLock)) {
+	pthread_mutex_lock(&locationLock);
           loc = location;
           pthread_mutex_unlock(&locationLock);
-      }
-	printf("After releasing mutex.\n");
+	  //}
+	  //printf("After releasing mutex.\n");
 
       printf("In TestBalloonMutex, range = %f, phi = %f, theta = %f, sec = %ld, usec = %ld\n",
         location.range, location.phi, location.theta, (long) location.timestamp.tv_sec, (long) location.timestamp.tv_usec);
