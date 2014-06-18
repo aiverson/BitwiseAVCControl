@@ -480,90 +480,85 @@ int Comm::ReadMessages(Mission *mission)
         printf("Error trying to read data from Pixhawk.\n");
         return 0;
     } else {
-
-		// Block until data is available, read only one byte to be able to continue immediately
-		//char buf[MAVLINK_MAX_PACKET_LEN];
-		uint8_t cp;
-		mavlink_message_t message;
-		mavlink_status_t status;
-		uint8_t msgReceived = false;
-
-		if (read(fd, &cp, 1) > 0)
-		{
-			// Check if a message could be decoded, return the message in case yes
-			msgReceived = mavlink_parse_char(MAVLINK_COMM_1, cp, &message, &status);
-			if (lastStatus.packet_rx_drop_count != status.packet_rx_drop_count)
-			{
-				if (verbose || debug) printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
-				if (debug)
-				{
-					unsigned char v=cp;
-					fprintf(stderr,"%02x ", v);
-				}
-			}
-			lastStatus = status;
-		}
-		else
-		{
-			if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
-		}
-
-		// If a message could be decoded, handle it
-		if(msgReceived)
-		{
-			//if (verbose || debug) std::cout << std::dec << "Received and forwarded serial port message with id " << static_cast<unsigned int>(message.msgid) << " from system " << static_cast<int>(message.sysid) << std::endl;
-
-			// Do not send images over serial port
-
-			// DEBUG output
-			if (debug)
-			{
-				fprintf(stderr,"Received serial data: ");
-				unsigned int i;
-				uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
-				unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
-				if (messageLength > MAVLINK_MAX_PACKET_LEN)
-				{
-					fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
-				}
-				else
-				{
-					for (i=0; i<messageLength; i++)
-					{
-						unsigned char v=buffer[i];
-						fprintf(stderr,"%02x ", v);
-					}
-					fprintf(stderr,"\n");
-				}
-			}
-
-			if (verbose || debug)
-				printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
-
-			/* decode and print */
+        // Block until data is available, read only one byte to be able to continue immediately
+        //char buf[MAVLINK_MAX_PACKET_LEN];
+        uint8_t cp;
+        mavlink_message_t message;
+        mavlink_status_t status;
+        uint8_t msgReceived = false;
 
 
-			// For full MAVLink message documentation, look at:
-			// https://pixhawk.ethz.ch/mavlink/
+        //		if (read(fd, &cp, 1) > 0)
+        int numBytes = read(fd, buf, 200);
+        printf("Received %d bytes.\n", numBytes);
+        if (numBytes > 0) {
+            for (int i = 0; i < numBytes; i++) {
+                // Check if a message could be decoded, return the message in case yes
+                //			msgReceived = mavlink_parse_char(MAVLINK_COMM_1, cp, &message, &status);
+                msgReceived = mavlink_parse_char(MAVLINK_COMM_1, buf[i], &message, &status);
+                if (lastStatus.packet_rx_drop_count != status.packet_rx_drop_count) {
+                    if (verbose || debug) printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
+                    if (debug) {
+                        unsigned char v = cp;
+                        fprintf(stderr, "%02x ", v);
+                    }
+                }
+                lastStatus = status;
+            }
 
-			switch (message.msgid)
-			{
-				case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message, mission); break;
-				case MAVLINK_MSG_ID_SET_MODE:            ReceiveMsgSetMode(message);          break;
-				case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
-				case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
-				case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message, mission); break;
-				case MAVLINK_MSG_ID_ATTITUDE:            ReceiveMsgAttitude(      message, mission); break;
-				case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(  message, mission); break;
-				case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message, mission); break;
-				case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(   message, mission); break;
-				case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
-				case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
-			}
+            // If a message could be decoded, handle it
+            if (msgReceived) {
+                //if (verbose || debug) std::cout << std::dec << "Received and forwarded serial port message with id " << static_cast<unsigned int>(message.msgid) << " from system " << static_cast<int>(message.sysid) << std::endl;
 
-		}
-	}
-	return 0;
+                // Do not send images over serial port
+
+                // DEBUG output
+                if (debug) {
+                    fprintf(stderr, "Received serial data: ");
+                    unsigned int i;
+                    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+                    unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
+                    if (messageLength > MAVLINK_MAX_PACKET_LEN) {
+                        fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
+                    } else {
+                        for (i = 0; i < messageLength; i++) {
+                            unsigned char v = buffer[i];
+                            fprintf(stderr, "%02x ", v);
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                }
+
+                if (verbose || debug)
+                    printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
+
+                /* decode and print */
+
+
+                // For full MAVLink message documentation, look at:
+                // https://pixhawk.ethz.ch/mavlink/
+
+                switch (message.msgid) {
+                        case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message, mission); break;
+                        case MAVLINK_MSG_ID_SET_MODE:            ReceiveMsgSetMode(message);          break;
+                        case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
+                        case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
+                        case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: ReceiveMsgGlobalPosition(message, mission); break;
+                        case MAVLINK_MSG_ID_ATTITUDE:            ReceiveMsgAttitude(      message, mission); break;
+                        case MAVLINK_MSG_ID_MISSION_COUNT:       ReceiveMsgMissionCount(  message, mission); break;
+                        case MAVLINK_MSG_ID_MISSION_CURRENT:     ReceiveMsgMissionCurrent(message, mission); break;
+                        case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(   message, mission); break;
+                        case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
+                        case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
+                }
+
+            }
+        } else {
+            if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
+        }
+
+        return 0;
+    }
 }
 
 void Comm::ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission) {
