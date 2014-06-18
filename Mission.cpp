@@ -172,7 +172,9 @@ void Mission::HandleMission(Comm *comm) {
             // Only for testing purposes...
             if (loopCounter % 1000 == 0) {
                 TestBalloonMutex();
-
+		mavlink_mission_item_t newCommand;
+		CalcBalloonLocation(&newCommand);
+		printf("(%f, %f, %f)", newCommand.x, newCommand.y, newCommand.z);
 
 /*
                 if (currFlightMode != AUTO) {
@@ -287,22 +289,25 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   pthread_mutex_lock(&locationLock);
     // Use our current position and attitude, along with the calcuated offsets to
   // the balloon to calculate lat/long/alt of balloon.
-  constexpr double m1 = 111132.92;
-  constexpr double m2 = -559.82;
-  constexpr double m3 = 1.175;
-  constexpr double m4 = 0.0023;
-  constexpr double p1 = 111412;
-  constexpr double p2 = -93.5;
-  constexpr double p3 = 0.118;
+  const double m1 = 111132.92;
+  const double m2 = -559.82;
+  const double m3 = 1.175;
+  const double m4 = 0.0023;
+  const double p1 = 111412;
+  const double p2 = -93.5;
+  const double p3 = 0.118;
 
-  double lat = globalPosition.latitude*1.0e-7;
-  double lon = globalPosition.longitude*1.0e-7;
+  double lat = globalPosition.lat*1.0e-7;
+  double lon = globalPosition.lon*1.0e-7;
+  double latrad = lat*3.1415926/180;
+  double lonrad = lon*3.1415926/180;
   double alt = globalPosition.relative_alt/1000.0;
   double pitch = attitude.pitch;
   double yaw = attitude.yaw;
   double rho = location.range;
   double phi = location.phi;
   double theta = location.theta;
+  pthread_mutex_unlock(&locationLock);
   
   double latlen = m1+m2*cos(2*latrad)+m3*cos(4*latrad)+m4*cos(6*latrad);
   double lonlen = p1*cos(latrad)+p2*cos(3*latrad)+p3*cos(latrad);

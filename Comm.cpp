@@ -43,9 +43,9 @@ Comm::Comm() {
     sysid = 1;             ///< The unique system id of this MAV, 0-127. Has to be consistent across the system
     target_compid = 1;     // pixhawk
     compid = 2;            // me
-    silent = false;              ///< Wether console output should be enabled
-    verbose = false;             ///< Enable verbose output
-    debug = false;               ///< Enable debug functions and output
+    silent = false;              ///< Whether console output should be enabled
+    verbose = true;             ///< Enable verbose output
+    debug = true;               ///< Enable debug functions and output
     lastStatus.packet_rx_drop_count = 0;
     fd = -1;  // not initialized
 }
@@ -368,6 +368,7 @@ int Comm::SendPing()
 
 int Comm::SendMissionSetCurrent(int index)
 {
+  return 0;
 	mavlink_message_t message;
 	mavlink_mission_set_current_t sc;
 	sc.seq              = index;
@@ -386,6 +387,7 @@ int Comm::SendMissionSetCurrent(int index)
 
 int Comm::SendSetMode(int mode)
 {
+  return 0;
 	mavlink_message_t message;
 
 	mavlink_set_mode_t sm;
@@ -404,6 +406,7 @@ int Comm::SendSetMode(int mode)
 }
 
 int Comm::SendMissionRequestList() {
+  return 0;
 	mavlink_message_t message;
 
 	mavlink_mission_request_list_t mrl;
@@ -422,6 +425,7 @@ int Comm::SendMissionRequestList() {
 }
 
 int Comm::SendMissionRequest(int seq) {
+  return 0;
 	mavlink_message_t message;
 
 	mavlink_mission_request_t mr;
@@ -441,6 +445,7 @@ int Comm::SendMissionRequest(int seq) {
 }
 
 int Comm::SendMissionItem( mavlink_mission_item_t item) {
+  return 0;
 	mavlink_message_t message;
 
         item.target_system    = sysid;
@@ -462,13 +467,6 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
  */
 int Comm::ReadMessages(Mission *mission)
 {
-<<<<<<< HEAD
-	printf( "Entering ReadMessages\n");
-
-	// Blocking wait for new data
-	{
-		//if (debug) printf("Checking for new data on serial port\n");
-=======
     int rv;
     struct timeval timeout;
     timeout.tv_sec = 1;
@@ -482,7 +480,7 @@ int Comm::ReadMessages(Mission *mission)
         printf("Error trying to read data from Pixhawk.\n");
         return 0;
     } else {
->>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
+
 		// Block until data is available, read only one byte to be able to continue immediately
 		//char buf[MAVLINK_MAX_PACKET_LEN];
 		uint8_t cp;
@@ -565,11 +563,6 @@ int Comm::ReadMessages(Mission *mission)
 
 		}
 	}
-<<<<<<< HEAD
-	printf( "Leaving ReadMessages\n");
-=======
-
->>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
 	return 0;
 }
 
