@@ -28,10 +28,12 @@ public:
     void SetMissionCount( int missionCount );
     bool StoreMissionItem( mavlink_mission_item_t item);
     void StoreGlobalPosition( mavlink_global_position_int_t pos );
+    void StoreAttitude( mavlink_attitude_t newAttitude );
     void StoreCurrentMissionIndex( int index );
     void StoreCurrentMode(FlightMode mode);
     void PrintMission();
     void PrintGlobalPosition();
+    void PrintAttitude();
     void HandleMission(Comm *comm);
 private:
 
@@ -43,7 +45,9 @@ private:
     int receivedMissionItemCount;
     mavlink_mission_item_t mission[50];
 
-    mavlink_global_position_int_t globalPosition;  // values are scaled integers
+    mavlink_global_position_int_t globalPosition;  // Most recently received position.  Values are scaled integers.
+    mavlink_attitude_t attitude;                   // Most recently received attitude.
+    
     int  currMissionIndex;
     int  missionIndexWhenReturnToAuto;
     struct timeval startTime;

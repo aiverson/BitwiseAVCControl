@@ -57,6 +57,7 @@ private:
     void ReceiveMsgSetMode(mavlink_message_t message);
     void ReceiveMsgStatusText(mavlink_message_t message);
     void ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission);
+    void ReceiveMsgAttitude(      mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCount(  mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionCurrent(mavlink_message_t message, Mission *mission);
     void ReceiveMsgMissionItem(   mavlink_message_t message, Mission *mission);
