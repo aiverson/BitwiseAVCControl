@@ -462,13 +462,6 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
  */
 int Comm::ReadMessages(Mission *mission)
 {
-<<<<<<< HEAD
-	printf( "Entering ReadMessages\n");
-
-	// Blocking wait for new data
-	{
-		//if (debug) printf("Checking for new data on serial port\n");
-=======
     int rv;
     struct timeval timeout;
     timeout.tv_sec = 1;
@@ -482,7 +475,6 @@ int Comm::ReadMessages(Mission *mission)
         printf("Error trying to read data from Pixhawk.\n");
         return 0;
     } else {
->>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
 		// Block until data is available, read only one byte to be able to continue immediately
 		//char buf[MAVLINK_MAX_PACKET_LEN];
 		uint8_t cp;
@@ -565,11 +557,6 @@ int Comm::ReadMessages(Mission *mission)
 
 		}
 	}
-<<<<<<< HEAD
-	printf( "Leaving ReadMessages\n");
-=======
-
->>>>>>> 46e03c0d895546ee2667a99044150d93aa0b595a
 	return 0;
 }
 
