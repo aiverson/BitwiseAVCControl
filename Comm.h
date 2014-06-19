@@ -26,10 +26,6 @@ public:
     bool SetupPort(int baud, int data_bits, int stop_bits, bool parity, bool hardware_control);
     void ClosePort();
 
-    // testing... delete soon
-//    int SendPing();
-//    int SendSomeStuff();
-
     int SendMissionSetCurrent(int index);
     int SendSetMode(int mode);
     int SendMissionRequestList();

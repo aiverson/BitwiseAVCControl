@@ -44,7 +44,7 @@ Comm::Comm() {
     target_compid = 1;     // pixhawk
     compid = 2;            // me
     silent = false;              ///< Whether console output should be enabled
-    verbose = false;             ///< Enable verbose output
+    verbose = true;             ///< Enable verbose output
     debug = false;               ///< Enable debug functions and output
     lastStatus.packet_rx_drop_count = 0;
     fd = -1;  // not initialized
@@ -336,36 +336,6 @@ void Comm::ClosePort()
 	close(fd);
 }
 
-// Not currently supported.
-/*
-int Comm::SendPing()
-{
-        struct timeval tv;		  ///< System time
-
-	mavlink_message_t message;
-	mavlink_ping_t ping;
-	gettimeofday(&tv, NULL);
-	ping.time_usec = tv.tv_sec * 1000000 + tv.tv_usec;
-
-	ping.time_usec = 1402800301L * 1e6;
-	ping.seq = next_mission;
-	ping.target_system    = sysid;
-	ping.target_component = target_compid;
-
-	mavlink_msg_ping_encode( sysid, compid, &message, &ping);
-	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
-
-
-//	printf(" tv_sec = %d, tv_usec = %d\n", tv.tv_sec, tv.tv_usec);
-	printf("------------------------before write - ping usec = %lld, seq = %d, len %d\n", ping.time_usec, ping.seq, len );
-	// write packet via serial link
-	write(fd, buf, len);
-	// wait until all data has been written 
-	tcdrain(fd);
-	printf("------------------------after write\n");
-}
-*/
-
 int Comm::SendMissionSetCurrent(int index)
 {
 	mavlink_message_t message;
@@ -460,14 +430,13 @@ int Comm::SendMissionItem( mavlink_mission_item_t item) {
 /**
  * Read and process messages.
  */
-int Comm::ReadMessages(Mission *mission)
-{
+int Comm::ReadMessages(Mission *mission) {
     int rv;
     struct timeval timeout;
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
 
-    rv = select( fd + 1, &read_fds, NULL, NULL, &timeout);
+    rv = select(fd + 1, &read_fds, NULL, NULL, &timeout);
     if (rv == 0) {
         printf("Timeout trying to read data from Pixhawk.\n");
         return 0;
@@ -492,48 +461,48 @@ int Comm::ReadMessages(Mission *mission)
                 //			msgReceived = mavlink_parse_char(MAVLINK_COMM_1, cp, &message, &status);
                 msgReceived = mavlink_parse_char(MAVLINK_COMM_1, buf[i], &message, &status);
                 if (lastStatus.packet_rx_drop_count != status.packet_rx_drop_count) {
-                    if (verbose || debug) printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
+                    if (debug) printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
                     if (debug) {
                         unsigned char v = cp;
                         fprintf(stderr, "%02x ", v);
                     }
                 }
                 lastStatus = status;
-            
 
-            // If a message could be decoded, handle it
-		if (msgReceived) {
-                //if (verbose || debug) std::cout << std::dec << "Received and forwarded serial port message with id " << static_cast<unsigned int>(message.msgid) << " from system " << static_cast<int>(message.sysid) << std::endl;
 
-                // Do not send images over serial port
+                // If a message could be decoded, handle it
+                if (msgReceived) {
+                    //if (verbose || debug) std::cout << std::dec << "Received and forwarded serial port message with id " << static_cast<unsigned int>(message.msgid) << " from system " << static_cast<int>(message.sysid) << std::endl;
 
-                // DEBUG output
-                if (debug) {
-                    fprintf(stderr, "Received serial data: ");
-                    unsigned int i;
-                    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
-                    unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
-                    if (messageLength > MAVLINK_MAX_PACKET_LEN) {
-                        fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
-                    } else {
-                        for (i = 0; i < messageLength; i++) {
-                            unsigned char v = buffer[i];
-                            fprintf(stderr, "%02x ", v);
+                    // Do not send images over serial port
+
+                    // DEBUG output
+                    if (debug) {
+                        fprintf(stderr, "Received serial data: ");
+                        unsigned int i;
+                        uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+                        unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
+                        if (messageLength > MAVLINK_MAX_PACKET_LEN) {
+                            fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
+                        } else {
+                            for (i = 0; i < messageLength; i++) {
+                                unsigned char v = buffer[i];
+                                fprintf(stderr, "%02x ", v);
+                            }
+                            fprintf(stderr, "\n");
                         }
-                        fprintf(stderr, "\n");
                     }
-                }
 
-                if (verbose || debug)
-                    printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
+                    if (debug)
+                        printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
 
-                /* decode and print */
+                    /* decode and print */
 
 
-                // For full MAVLink message documentation, look at:
-                // https://pixhawk.ethz.ch/mavlink/
+                    // For full MAVLink message documentation, look at:
+                    // https://pixhawk.ethz.ch/mavlink/
 
-                switch (message.msgid) {
+                    switch (message.msgid) {
                         case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message, mission); break;
                         case MAVLINK_MSG_ID_SET_MODE:            ReceiveMsgSetMode(message);          break;
                         case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
@@ -545,11 +514,11 @@ int Comm::ReadMessages(Mission *mission)
                         case MAVLINK_MSG_ID_MISSION_ITEM:        ReceiveMsgMissionItem(   message, mission); break;
                         case MAVLINK_MSG_ID_GPS_STATUS:          ReceiveMsgGPSStatus(message);        break;
                         case MAVLINK_MSG_ID_LOCAL_POSITION_NED:  ReceiveMsgLocalPositionNED(message); break;
-                }
-		}
-	    }
-	} else {
-	  if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
+                    }
+                }  // end of if msgReceived
+            }  // end of for i
+        } else {  // numBytes must be <= 0
+            if (!silent) fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
         }
 
         return 0;
@@ -561,14 +530,16 @@ void Comm::ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission) {
         mavlink_heartbeat_t hb;
         mavlink_msg_heartbeat_decode(&message, &hb);
 
-        printf("Got message HEARTBEAT\n");
-        printf("\t type: %d\n", hb.type);
-        printf("\t autopilot: %d\n", hb.autopilot);
-        printf("\t base_mode: %d\n", hb.base_mode);
-        printf("\t custom_mode: %d\n", hb.custom_mode);
-        printf("\t system_status: %d\n", hb.system_status);
-        printf("\t mavlink_version: %d\n", hb.mavlink_version);
-        printf("\n");
+        if (verbose) {
+            printf("Got message HEARTBEAT\n");
+            printf("\t type: %d\n", hb.type);
+            printf("\t autopilot: %d\n", hb.autopilot);
+            printf("\t base_mode: %d\n", hb.base_mode);
+            printf("\t custom_mode: %d\n", hb.custom_mode);
+            printf("\t system_status: %d\n", hb.system_status);
+            printf("\t mavlink_version: %d\n", hb.mavlink_version);
+            printf("\n");
+        }
 
         if (hb.base_mode == 81 && hb.custom_mode == 0)
            mode = STABILIZE;
