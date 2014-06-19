@@ -150,8 +150,14 @@ void Mission::HandleMission(Comm *comm) {
 
                 // In response to the MAVLink message MISSION_REQUEST_LIST, the pixhawk only returns the count of
                 // mission items.  It doesn't actually return the list.  Each item must be requested separately.
-                if (missionItemCount == -1)
+                if (missionItemCount == -1) {
                     comm->SendMissionRequestList();
+                    // Let's also disable the failsafe timeout.  0 = disable.
+                    // I'm not sure about which param_type to use, but UINT8
+                    // seems reasonable for a param which can only take the values 0, 1, 2
+                    char paramName[16] = "FS_GCS_ENABLE";
+                    comm->SendMsgParamSet(paramName, MAV_PARAM_TYPE_UINT8, 0);  // disable failsafe
+                }
 
                     // Request the mission items one at a time.  Repeating requests, if necessary.
                 else if (receivedMissionItemCount < missionItemCount)

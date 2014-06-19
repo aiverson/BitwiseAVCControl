@@ -27,6 +27,7 @@ public:
     void ClosePort();
 
     int SendMsgHeartbeat();
+    int SendMsgParamSet(char *param_id, uint8_t param_type, float param_value);
     int SendMissionSetCurrent(int index);
     int SendSetMode(int mode);
     int SendMissionRequestList();
@@ -51,6 +52,7 @@ private:
     mavlink_status_t lastStatus;
 
     void ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission);
+    void ReceiveMsgParamValue(mavlink_message_t message);
     void ReceiveMsgSetMode(mavlink_message_t message);
     void ReceiveMsgStatusText(mavlink_message_t message);
     void ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission);

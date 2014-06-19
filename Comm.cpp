@@ -342,7 +342,7 @@ int Comm::SendMsgHeartbeat() {
         mavlink_message_t message;
         mavlink_heartbeat_t hb;
         hb.type = MAV_TYPE_ONBOARD_CONTROLLER;  // 18
-        hb.autopilot = MAV_AUTOPILOT_ARDUPILOTMEGA;  // 3
+        hb.autopilot = MAV_AUTOPILOT_INVALID;  // 8 - Not an autopilot, we are a different component
         hb.base_mode = 0;
         hb.custom_mode = 0;
         hb.system_status = 0;
@@ -352,6 +352,26 @@ int Comm::SendMsgHeartbeat() {
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
 
 	printf("------------------------ send heartbeat\n");
+	/* write packet via serial link */
+	write(fd, buf, len);
+	/* wait until all data has been written */
+	tcdrain(fd);
+}
+
+int Comm::SendMsgParamSet(char *param_id, uint8_t param_type, float param_value) {
+
+        mavlink_message_t message;
+        mavlink_param_set_t ps;
+        ps.target_system    = sysid;
+        ps.target_component = target_compid;
+        ps.param_type = param_type;
+        ps.param_value = param_value;
+        memcpy(ps.param_id, param_id, 16);  // using memcpy since \0 not guaranteed
+
+        mavlink_msg_param_set_encode( sysid, compid, &message, &ps);
+	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
+
+	printf("------------------------ set param %s to %f\n", ps.param_id, ps.param_value);
 	/* write packet via serial link */
 	write(fd, buf, len);
 	/* wait until all data has been written */
@@ -485,10 +505,12 @@ int Comm::ReadMessages(Mission *mission) {
                 msgReceived = mavlink_parse_char(MAVLINK_COMM_1, buf[i], &message, &status);
                 if (lastStatus.packet_rx_drop_count != status.packet_rx_drop_count) {
                     if (debug) printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
+                    /*
                     if (debug) {
                         unsigned char v = cp;
                         fprintf(stderr, "%02x ", v);
                     }
+                     */
                 }
                 lastStatus = status;
 
@@ -527,6 +549,7 @@ int Comm::ReadMessages(Mission *mission) {
 
                     switch (message.msgid) {
                         case MAVLINK_MSG_ID_HEARTBEAT:           ReceiveMsgHeartbeat(message, mission); break;
+                        case MAVLINK_MSG_ID_PARAM_VALUE:         ReceiveMsgParamValue(message); break;
                         case MAVLINK_MSG_ID_SET_MODE:            ReceiveMsgSetMode(message);          break;
                         case MAVLINK_MSG_ID_PING:                ReceiveMsgPing(message);             break;
                         case MAVLINK_MSG_ID_STATUSTEXT:          ReceiveMsgStatusText(message);       break;
@@ -574,6 +597,22 @@ void Comm::ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission) {
             mode = OTHER;
 
         mission->StoreCurrentMode(mode);
+}
+
+void Comm::ReceiveMsgParamValue(mavlink_message_t message) {
+        mavlink_param_value_t pv;
+        mavlink_msg_param_value_decode(&message, &pv);
+
+        if (verbose) {
+            printf("Got message PARAM VALUE\n");
+            printf("\t value: %f\n", pv.param_value);
+            printf("\t type: %d\n", pv.param_type);
+            pv.param_id[15] = '\0';  // null terminate so we can print.  Might lose the last char.
+            printf("\t name: %s\n", pv.param_id);
+            printf("\t param_count: %d\n", pv.param_count);
+            printf("\t param_index: %d\n", pv.param_index);
+            printf("\n");
+        }
 }
 
 void Comm::ReceiveMsgSetMode(mavlink_message_t message) {
