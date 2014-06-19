@@ -139,6 +139,7 @@ void Mission::HandleMission(Comm *comm) {
 
     if (timeDelta > TIME_BETWEEN_UPDATES) {
         lastMissionUpdateTime = currTime;
+        comm->SendMsgHeartbeat();
 
         switch (currState) {
             case INITIALIZE:

@@ -336,6 +336,29 @@ void Comm::ClosePort()
 	close(fd);
 }
 
+
+int Comm::SendMsgHeartbeat() {
+
+        mavlink_message_t message;
+        mavlink_heartbeat_t hb;
+        hb.type = MAV_TYPE_ONBOARD_CONTROLLER;  // 18
+        hb.autopilot = MAV_AUTOPILOT_ARDUPILOTMEGA;  // 3
+        hb.base_mode = 0;
+        hb.custom_mode = 0;
+        hb.system_status = 0;
+        hb.mavlink_version = 3;
+
+        mavlink_msg_heartbeat_encode(sysid, compid, &message, &hb);
+	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
+
+	printf("------------------------ send heartbeat\n");
+	/* write packet via serial link */
+	write(fd, buf, len);
+	/* wait until all data has been written */
+	tcdrain(fd);
+}
+
+
 int Comm::SendMissionSetCurrent(int index)
 {
 	mavlink_message_t message;
@@ -596,18 +619,19 @@ void Comm::ReceiveMsgGlobalPosition(mavlink_message_t message, Mission *mission)
         mavlink_global_position_int_t gp;
         mavlink_msg_global_position_int_decode(&message, &gp);
 
-        printf("Got message GLOBAL_POSITION\n");
-        printf("\t time_boot_ms: %d\n", gp.time_boot_ms);
-        printf("\t lat: %d, %f\n", gp.lat, ((double)gp.lat)/1e7 );
-        printf("\t lon: %d, %f\n", gp.lon, ((double)gp.lon)/1e7 );
-        printf("\t alt: %d, %f\n", gp.alt, ((double)gp.alt)/1000 );
-        printf("\t rel alt: %d, %f\n", gp.relative_alt, ((double)gp.relative_alt)/1000 );
-        printf("\t vx: %d, %f\n", gp.vx, ((double)gp.vx)/100 );
-        printf("\t vy: %d, %f\n", gp.vy, ((double)gp.vy)/100 );
-        printf("\t vz: %d, %f\n", gp.vz, ((double)gp.vz)/100 );
-        printf("\t hdg: %d, %f\n", gp.hdg, ((double)gp.hdg)/100 );
-        printf("\n");
-
+        if (verbose) {
+            printf("Got message GLOBAL_POSITION\n");
+            printf("\t time_boot_ms: %d\n", gp.time_boot_ms);
+            printf("\t lat: %d, %f\n", gp.lat, ((double)gp.lat)/1e7 );
+            printf("\t lon: %d, %f\n", gp.lon, ((double)gp.lon)/1e7 );
+            printf("\t alt: %d, %f\n", gp.alt, ((double)gp.alt)/1000 );
+            printf("\t rel alt: %d, %f\n", gp.relative_alt, ((double)gp.relative_alt)/1000 );
+            printf("\t vx: %d, %f\n", gp.vx, ((double)gp.vx)/100 );
+            printf("\t vy: %d, %f\n", gp.vy, ((double)gp.vy)/100 );
+            printf("\t vz: %d, %f\n", gp.vz, ((double)gp.vz)/100 );
+            printf("\t hdg: %d, %f\n", gp.hdg, ((double)gp.hdg)/100 );
+            printf("\n");
+        }
         mission->StoreGlobalPosition(gp);
 }
 
@@ -615,16 +639,17 @@ void Comm::ReceiveMsgAttitude(mavlink_message_t message, Mission *mission) {
         mavlink_attitude_t attitude;
         mavlink_msg_attitude_decode(&message, &attitude);
 
-        printf("Most recent ATTITUDE\n");
-        printf("\t time_boot_ms: %d\n", attitude.time_boot_ms);
-        printf("\t roll: %f\n", attitude.roll);
-        printf("\t pitch: %f\n", attitude.pitch);
-        printf("\t yaw: %f\n", attitude.yaw);
-        printf("\t rollspeed: %f\n", attitude.rollspeed);
-        printf("\t pitchspeed: %f\n", attitude.pitchspeed);
-        printf("\t yawspeed: %f\n", attitude.yawspeed);
-        printf("\n");
-
+        if (verbose) {
+            printf("Most recent ATTITUDE\n");
+            printf("\t time_boot_ms: %d\n", attitude.time_boot_ms);
+            printf("\t roll: %f\n", attitude.roll);
+            printf("\t pitch: %f\n", attitude.pitch);
+            printf("\t yaw: %f\n", attitude.yaw);
+            printf("\t rollspeed: %f\n", attitude.rollspeed);
+            printf("\t pitchspeed: %f\n", attitude.pitchspeed);
+            printf("\t yawspeed: %f\n", attitude.yawspeed);
+            printf("\n");
+        }
         mission->StoreAttitude(attitude);
 }
 
