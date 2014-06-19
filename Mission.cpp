@@ -286,7 +286,8 @@ bool Mission::IsBalloonNearby() {
     float range = -1.0;
 
     // Get a mutex to check the data structure shared with the computer vision code.
-    if (pthread_mutex_trylock(&locationLock)) {
+//    if (pthread_mutex_trylock(&locationLock)) {
+    if (pthread_mutex_lock(&locationLock)) {
         range = location.range;
         pthread_mutex_unlock(&locationLock);
     }
