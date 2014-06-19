@@ -5,17 +5,19 @@
  * Created on June 15, 2014, 11:05 AM
  */
 
-#include "Mission.h"
 #include <stdio.h>
+#include "Mission.h"
+#include "mavlink/include/pixhawk/pixhawk.h"
 
 Mission::Mission() {
-//  currState = BOOTING;
-  currState = INITIALIZE;
+    currState = INITIALIZE;
   //currState = PREPROGRAMMED_MISSION;
     receivedMissionItemCount = 0;
     missionItemCount = -1;
     loopCounter = 0;
     currMissionIndex = 0;
+    numIterationsWithoutSeeingBalloon = 0;
+    gettimeofday(&lastMissionUpdateTime, NULL);
 }
 
 Mission::Mission(const Mission& orig) {
@@ -123,21 +125,25 @@ void Mission::StoreCurrentMode( FlightMode mode ) {
     }
 }
 
+long Mission::GetTimeDelta(struct timeval timea, struct timeval timeb) {
+  return 1000000 * (timeb.tv_sec - timea.tv_sec) +
+    (int(timeb.tv_usec) - int(timea.tv_usec));
+}
+
 void Mission::HandleMission(Comm *comm) {
-  
+    struct timeval currTime;
+    gettimeofday(&currTime, NULL);
 
-    switch (currState) {
-        case BOOTING:
-            // Give the pixhawk time to startup.
-            if (loopCounter > 10) {
-                printf("-------------------------Switching from state BOOTING to INITIALIZE\n" );
-                currState = INITIALIZE;
-            }
-            break;
+    long timeDelta = GetTimeDelta(lastMissionUpdateTime, currTime);
+    printf("timeDelta = %ld\n", timeDelta);
 
-        case INITIALIZE:
-            // Get the Mission from the pixhawk.
-            if (loopCounter % 10 == 0) {
+    if (timeDelta > TIME_BETWEEN_UPDATES) {
+        lastMissionUpdateTime = currTime;
+
+        switch (currState) {
+            case INITIALIZE:
+                printf("-----------------------INITIALIZE\n");
+                // Get the Mission from the pixhawk.
                 printf("-------------------------In INITIALIZE, missionItemCount = %d, receivedMissionItemCount = %d\n",
                         missionItemCount, receivedMissionItemCount);
 
@@ -146,147 +152,154 @@ void Mission::HandleMission(Comm *comm) {
                 if (missionItemCount == -1)
                     comm->SendMissionRequestList();
 
-                // Request the mission items one at a time.  Repeating requests, if necessary.
+                    // Request the mission items one at a time.  Repeating requests, if necessary.
                 else if (receivedMissionItemCount < missionItemCount)
                     comm->SendMissionRequest(receivedMissionItemCount);
 
                 else if (receivedMissionItemCount >= missionItemCount) {
-                    currState = PREPROGRAMMED_MISSION;  // We have the whole list.
+                    currState = PREPROGRAMMED_MISSION; // We have the whole list.
 
-                    printf("-------------------------Switching from state INITIALIZE to PREPROGRAMMED_MISSION\n" );
+                    printf("-------------------------Switching from state INITIALIZE to PREPROGRAMMED_MISSION\n");
                 }
-            }
 
-            break;
+                break;
 
-        case PREPROGRAMMED_MISSION:
+            case PREPROGRAMMED_MISSION:
+                printf("-----------------------PREPROGRAMMED_MISSION\n");
 
-            // We are in a preprogrammed part of the mission.  Watch for our special
-            // indicators that a balloon should be near.
+                // We are in a preprogrammed part of the mission.  Watch for our special
+                // indicators that a balloon should be near.
 
-            // May want to insert LOITER commands (or some other flag) to indicate we should
-            // start searching for balloons.  
+                // May want to insert LOITER commands (or some other flag) to indicate we should
+                // start searching for balloons.
 
-            // Store time that we started searching for a balloon.  Switch to mode SEARCHING_FOR_BALOON.
+                // Store time that we started searching for a balloon.  Switch to mode SEARCHING_FOR_BALOON.
 
-
-            // Only for testing purposes...
-            if (loopCounter % 5 == 0) {
-                TestBalloonMutex();
-		mavlink_mission_item_t newCommand;
-		CalcBalloonLocation(&newCommand);
-		printf("*********(%f, %f, %f)\n", newCommand.x, newCommand.y, newCommand.z);
-		PrintGlobalPosition();
-
-/*
-                if (currFlightMode != AUTO) {
-                    // if not in mode AUTO, switch to it for testing...
-                    printf("-------------------------Requesting mode change to AUTO.\n" );
-                    comm->SendSetMode(int (AUTO) );
-                    comm->SendMissionSetCurrent(1);
+                if (currFlightMode == AUTO && mission[currMissionIndex].command == MAV_CMD_NAV_LOITER_TIME) { // cmd id is 19
+                    printf("--------------------------------In Loiter mode, switch to SEARCHING_FOR_BALLOON\n");
+                    currState = SEARCHING_FOR_BALLOON;
+                    gettimeofday(&startSearchingForBalloonTime, NULL);
                 }
-*/
-            }
-            break;
 
-        case SEARCHING_FOR_BALLOON:
-            // We are still in auto mode flying a preprogrammed mission, but we are
-            // also expecting to find a balloon in this segment of the mission.
+                break;
 
-            // If we find a reasonably close balloon, switch to guided mode and go pop it.
-            // If find a balloon target, switch to guided flight mode and CHASING_BALLOON state.
+            case SEARCHING_FOR_BALLOON:
+                printf("-----------------------SEARCHING_FOR_BALLOON\n");
+                // We are still in auto mode flying a preprogrammed mission, but we are
+                // also expecting to find a balloon in this segment of the mission.
 
-            // If we do not find a balloon in a reasonable amount of time, switch
-            // back to PREPROGRAMMED_MISSION mode.
+                // If we find a reasonably close balloon, switch to guided flight mode and go pop it -
+                // (i.e. switch to CHASING_BALLOON state.)
 
-            if (loopCounter % 5000 == 0) {
-                if (currFlightMode == AUTO) {
+                // If we do not find a balloon in a reasonable amount of time, switch
+                // back to PREPROGRAMMED_MISSION mode.
+                if (currTime.tv_sec > startSearchingForBalloonTime.tv_sec + MAX_SECONDS_TO_SEARCH_FOR_BALLOON) {
+                    printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
+                    comm->SendSetMode(int (AUTO));
+                    comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); // pixhawk probably remembers this, also.
+                    currState = PREPROGRAMMED_MISSION;
+
+                } else if (currFlightMode == AUTO) {
 
                     if (IsBalloonNearby()) {
 
-                        printf("-------------------------Requesting mode change to GUIDED.\n" );
+                        printf("-------------------------Found a balloon.  Requesting mode change to GUIDED.\n");
                         comm->SendSetMode(int (GUIDED));
-                        missionIndexWhenReturnToAuto = currMissionIndex;
-                        gettimeofday(&startTime, NULL);
+                        missionIndexWhenReturnToAuto = currMissionIndex + 1;
+                        gettimeofday(&startChasingBalloonTime, NULL);
 
                         currState = CHASING_BALLOON;
+                        numIterationsWithoutSeeingBalloon = 0;
                     }
                 }
-            }
 
-            break;
-        case CHASING_BALLOON:
+                break;
+            case CHASING_BALLOON:
+                printf("-----------------------CHASING_BALLOON\n");
 
-            // FINISH...
-
-            // Periodically compare newly calculated balloon location with last balloon location.
-            // If altitude has changed, send waypoint with current = 3.  Changes altitude only
-            // If balloon location changed, send waypoint with current = 2.  (i.e., a guided waypoint)
+                // Periodically compare newly calculated balloon location with last balloon location.
+                // If altitude has changed, send waypoint with current = 3.  Changes altitude only
+                // If balloon location changed, send waypoint with current = 2.  (i.e., a guided waypoint)
 
 
-            // If balloon disappears (hopefully popped) or time expires, resume the preprogrammed mission,
-            // (i.e., flight mode AUTO and state PREPROGRAMMED_MISSION).  The pixhawk
+                // If balloon disappears (hopefully popped) or time expires, resume the preprogrammed mission,
+                // (i.e., flight mode AUTO and state PREPROGRAMMED_MISSION). 
 
 
+                if (currFlightMode != GUIDED)
+                    printf("CurrFlightMode should be GUIDED, but is %d\n", currFlightMode);
 
-            if (loopCounter % 2000 == 0) {
-                    printf("-------------------------Sending guided wp.\n" );
-                    mavlink_mission_item_t item;
-                    item.param1 = 0;
-                    item.param2 = 0;
-                    item.param3 = 0;
-                    item.param4 = 0;
-                    item.x = 40.52904510;
-                    item.y = -105.109100341797;
-                    item.z = 0.0;
-                    item.seq = 1;
-                    item.command = 16;
-                    item.frame = 3;
-                    item.current = 2;  // 2 = guided waypoint,  3 = altitude change only
-                    item.autocontinue = 1;
 
-                    comm->SendMissionItem(item);
+                mavlink_mission_item_t newCommand;
+                bool stillTrackingBalloon = CalcBalloonLocation(&newCommand);
 
+                if (!stillTrackingBalloon) {
+                    numIterationsWithoutSeeingBalloon++;
+                    printf("------------------numIterationsWithoutSeeingBalloon = %d\n", numIterationsWithoutSeeingBalloon);
+                }
+
+                if (numIterationsWithoutSeeingBalloon > MAX_ITERATIONS_WITHOUT_FINDING_BALLOON ||
+                        (currTime.tv_sec > startChasingBalloonTime.tv_sec + MAX_SECONDS_TO_CHASE_BALLOON)) {
                     // If balloon disappears (hopefully popped) or time expires, resume to the preprogrammed mission.
-                    // After 10 seconds, return to auto
-                    struct timeval currTime;
-                    gettimeofday(&currTime, NULL);
-                    if (currTime.tv_sec > startTime.tv_sec + 2) {
-                            printf("-------------------------Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex+1 );
-                            comm->SendSetMode(int (AUTO) );
-                            comm->SendMissionSetCurrent(currMissionIndex+1);  // pixhawk probably remembers this, also.
-                            currState = PREPROGRAMMED_MISSION;
-                    }
-            }
+                    printf("-------------------------Balloon is gone or time expired.  Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
+                    printf("-------------------------numIterationsWithoutFindingBalloon %d, max iterations = %d.\n", numIterationsWithoutSeeingBalloon, MAX_ITERATIONS_WITHOUT_FINDING_BALLOON);
+                    comm->SendSetMode(int (AUTO));
+                    comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); // pixhawk probably remembers this, also.
+                    currState = PREPROGRAMMED_MISSION;
 
-            break;
+                } else {
 
+                    printf("*********(%f, %f, %f)\n", newCommand.x, newCommand.y, newCommand.z);
+                    PrintGlobalPosition();
+
+                    printf("-------------------------Sending guided wp.\n");
+                    newCommand.param1 = 0;
+                    newCommand.param2 = 0;
+                    newCommand.param3 = 0;
+                    newCommand.param4 = 0;
+
+                    newCommand.seq = 1;
+                    newCommand.command = 16;
+                    newCommand.frame = 3;
+                    newCommand.current = 2; // 2 = guided waypoint,  3 = altitude change only
+                    newCommand.autocontinue = 1;
+
+                    comm->SendMissionItem(newCommand); // send with current = 2, guided waypoint, only uses lat/lon
+
+                    newCommand.current = 3;
+                    comm->SendMissionItem(newCommand); // send with current = 3, new altitude
+
+                }
+
+                break;
+
+        }
     }
-    loopCounter++;
-
-
 }
 
-bool Mission::IsBalloonNearby()
-{
-  if(pthread_mutex_trylock(&locationLock)) {
-    // FINISH...
-    if(location.range < 0) {
-      return false;
-    }
-    pthread_mutex_unlock(&locationLock);
-  }
+bool Mission::IsBalloonNearby() {
+
+    float range = -1.0;
+
     // Get a mutex to check the data structure shared with the computer vision code.
+    if (pthread_mutex_trylock(&locationLock)) {
+        range = location.range;
+        pthread_mutex_unlock(&locationLock);
+    }
+
     // Determine if it has found a balloon that is acceptably close.
+    if(range >= 0 && range < MAX_DISTANCE_TO_BALLOON) {
+        printf("------------------There's a balloon nearby!  It is %f meters away.\n", range);
+        return true;
+    }
 
-
-    return true;
+    printf("------------------Balloon is not is range.  Range = %f\n", range);
+    return false;
 }
 
 bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 {
   //printf("entering CalcBalloonLocation\n");
-    // FINISH...
 
     // Get a mutex to check the data structure shared with the computer vision code.
   pthread_mutex_lock(&locationLock);
@@ -312,6 +325,10 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   double phi = location.phi;
   double theta = location.theta;
   pthread_mutex_unlock(&locationLock);
+
+  // Return false if the balloon is gone.
+  if (rho < 0)
+      return false;
   
   double latlen = m1+m2*cos(2*latrad)+m3*cos(4*latrad)+m4*cos(6*latrad);
   double lonlen = p1*cos(latrad)+p2*cos(3*latrad)+p3*cos(latrad);
@@ -325,8 +342,7 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   item->z = newalt;
   //printf("leaving CalcBalloonLocation\n");
 
-    // Return false if the balloon is gone.
-    return false;
+  return true;
 }
 
 void Mission::TestBalloonMutex()
