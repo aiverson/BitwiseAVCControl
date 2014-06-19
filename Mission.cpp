@@ -266,8 +266,12 @@ void Mission::HandleMission(Comm *comm) {
 
                     comm->SendMissionItem(newCommand); // send with current = 2, guided waypoint, only uses lat/lon
 
-                    newCommand.current = 3;
-                    comm->SendMissionItem(newCommand); // send with current = 3, new altitude
+                    if (newCommand.z < 5) {   // Keep the altitude requests down to a reasonable limit.
+                        newCommand.current = 3;
+                        comm->SendMissionItem(newCommand); // send with current = 3, new altitude
+                    } else {
+                        printf("------------------------altitude is too high.  Not changing altitude.  Request was %f\n", newCommand.z);
+                    }
 
                 }
 
