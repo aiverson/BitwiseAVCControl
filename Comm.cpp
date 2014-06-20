@@ -63,8 +63,8 @@ int Comm::Startup(int argc, char **argv) {
 	/* default values for arguments */
 //	char *uart_name = (char*)"/dev/ttyUSB0";
 	char *uart_name = (char*)"/dev/ttyACM0";
-	int baudrate = 115200;
-//        int baudrate = 57600;
+//	int baudrate = 115200;
+        int baudrate = 57600;
 	const char *commandline_usage = "\tusage: %s -d <devicename> -b <baudrate> [-v/--verbose] [--debug]\n\t\tdefault: -d %s -b %i\n";
 
 	/* read program arguments */
@@ -587,11 +587,14 @@ void Comm::ReceiveMsgHeartbeat(mavlink_message_t message, Mission *mission) {
             printf("\n");
         }
 
-        if (hb.base_mode == 81 && hb.custom_mode == 0)
+//        if (hb.base_mode == 81 && hb.custom_mode == 0)
+        if (hb.custom_mode == 0)
            mode = STABILIZE;
-        else if (hb.base_mode == 89 && hb.custom_mode == 3)
+//        else if (hb.base_mode == 89 && hb.custom_mode == 3)
+        else if (hb.custom_mode == 3)
             mode = AUTO;
-        else if (hb.base_mode == 89 && hb.custom_mode == 4)
+//        else if (hb.base_mode == 89 && hb.custom_mode == 4)
+        else if (hb.custom_mode == 4)
             mode = GUIDED;
         else
             mode = OTHER;

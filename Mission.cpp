@@ -182,6 +182,9 @@ void Mission::HandleMission(Comm *comm) {
 
                 // Store time that we started searching for a balloon.  Switch to mode SEARCHING_FOR_BALOON.
 
+		printf("--------------------currFlightMode = %d, want AUTO = %d, currMissionIndex = %d, command = %d, want loiter %d\n",
+			currFlightMode, AUTO, currMissionIndex, mission[currMissionIndex].command, MAV_CMD_NAV_LOITER_TIME);
+
                 if (currFlightMode == AUTO && mission[currMissionIndex].command == MAV_CMD_NAV_LOITER_TIME) { // cmd id is 19
                     printf("--------------------------------In Loiter mode, switch to SEARCHING_FOR_BALLOON\n");
                     currState = SEARCHING_FOR_BALLOON;
@@ -273,11 +276,11 @@ void Mission::HandleMission(Comm *comm) {
 
                     comm->SendMissionItem(newCommand); // send with current = 2, guided waypoint, only uses lat/lon
 
-                    if (newCommand.z < 5) {   // Keep the altitude requests down to a reasonable limit.
+                    if (newCommand.z > 0.5 && newCommand.z < 3.0) {   // Keep the altitude requests down to a reasonable limit.
                         newCommand.current = 3;
                         comm->SendMissionItem(newCommand); // send with current = 3, new altitude
                     } else {
-                        printf("------------------------altitude is too high.  Not changing altitude.  Request was %f\n", newCommand.z);
+                        printf("------------------------altitude is out of range.  Not changing altitude.  Request was %f\n", newCommand.z);
                     }
 
                 }
@@ -292,12 +295,15 @@ bool Mission::IsBalloonNearby() {
 
     float range = -1.0;
 
+//    printf("get mutex for IsBalloonNearby\n");
     // Get a mutex to check the data structure shared with the computer vision code.
 //    if (pthread_mutex_trylock(&locationLock)) {
-    if (pthread_mutex_lock(&locationLock)) {
+    pthread_mutex_lock(&locationLock);
+//    	printf("got trylock mutex for IsBalloonNearby\n");
         range = location.range;
         pthread_mutex_unlock(&locationLock);
-    }
+//    }
+//    printf("release mutex for IsBalloonNearby\n");
 
     // Determine if it has found a balloon that is acceptably close.
     if(range >= 0 && range < MAX_DISTANCE_TO_BALLOON) {
@@ -311,11 +317,11 @@ bool Mission::IsBalloonNearby() {
 
 bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
 {
-  //printf("entering CalcBalloonLocation\n");
+  //printf("Entering CalcBalloonLocation\n");
 
     // Get a mutex to check the data structure shared with the computer vision code.
   pthread_mutex_lock(&locationLock);
-  //printf("CalcBalloonLocation locked mutex\n");
+//  printf("CalcBalloonLocation locked mutex\n");
     // Use our current position and attitude, along with the calcuated offsets to
   // the balloon to calculate lat/long/alt of balloon.
   const double m1 = 111132.92;
@@ -338,6 +344,8 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   double theta = location.theta;
   pthread_mutex_unlock(&locationLock);
 
+  printf("In CalcBalloonLocation, theta = %f, phi = %f, range = %f\n", theta, phi, rho);
+
   // Return false if the balloon is gone.
   if (rho < 0)
       return false;
@@ -352,7 +360,7 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   item->x = newlat;
   item->y = newlon;
   item->z = newalt;
-  //printf("leaving CalcBalloonLocation\n");
+//  printf("leaving CalcBalloonLocation\n");
 
   return true;
 }

@@ -32,10 +32,12 @@ int main(int argc, char **argv) {
     location.theta = 0.0;
     gettimeofday(&location.timestamp, NULL);
 
+
     rc = pthread_create(&cvThread, NULL, ComputerVision::RunCV, NULL);
     if (rc) {
         printf("**************Error starting CV thread, return code from pthread_create is %d****************\n", rc);
     }
+
 
     while (true) {
         comm.ReadMessages(&mission);

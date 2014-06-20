@@ -258,12 +258,12 @@ void ComputerVision::CvMain() {
     ConvertToHSV(frame, hue, sat, val);
     ProcessFrame(hue, sat, balloonyness, debugOverlay);
     DisplayOutput(frame_host, hue, sat, val, balloonyness, debugOverlay);
-    //printf("CV locking mutex\n");
+//    printf("CV locking mutex\n");
     pthread_mutex_lock(&locationLock);
-    //printf("CV locked mutex\n");
+//    printf("CV locked mutex\n");
     location = tempLocation;
     pthread_mutex_unlock(&locationLock);
-    //printf("CV unlocked mutex\n");
+//    printf("CV unlocked mutex\n");
 
     RecordTime(captureTime, &avgCaptureTime);
     RecordTime(conversionTime, &avgConversionTime);
