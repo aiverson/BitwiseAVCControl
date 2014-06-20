@@ -188,6 +188,7 @@ void Mission::HandleMission(Comm *comm) {
                 if (currFlightMode == AUTO && mission[currMissionIndex].command == MAV_CMD_NAV_LOITER_TIME) { // cmd id is 19
                     printf("--------------------------------In Loiter mode, switch to SEARCHING_FOR_BALLOON\n");
                     currState = SEARCHING_FOR_BALLOON;
+                    missionIndexWhenReturnToAuto = currMissionIndex + 1;
                     gettimeofday(&startSearchingForBalloonTime, NULL);
                 }
 
@@ -203,10 +204,15 @@ void Mission::HandleMission(Comm *comm) {
 
                 // If we do not find a balloon in a reasonable amount of time, switch
                 // back to PREPROGRAMMED_MISSION mode.
-                if (currTime.tv_sec > startSearchingForBalloonTime.tv_sec + MAX_SECONDS_TO_SEARCH_FOR_BALLOON) {
-                    printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
+                if (currTime.tv_sec > startSearchingForBalloonTime.tv_sec + MAX_SECONDS_TO_SEARCH_FOR_BALLOON ||
+                        currMissionIndex > missionIndexWhenReturnToAuto) {
                     comm->SendSetMode(int (AUTO));
-                    comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); // pixhawk probably remembers this, also.
+                    if (currMissionIndex < missionIndexWhenReturnToAuto) {
+                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto);
+                        printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Switching from current mission item %d to %d.\n", currMissionIndex, missionIndexWhenReturnToAuto);
+                    }
+                    printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Continuing with current mission item %d.\n", currMissionIndex);
+
                     currState = PREPROGRAMMED_MISSION;
 
                 } else if (currFlightMode == AUTO) {
@@ -215,7 +221,6 @@ void Mission::HandleMission(Comm *comm) {
 
                         printf("-------------------------Found a balloon.  Requesting mode change to GUIDED.\n");
                         comm->SendSetMode(int (GUIDED));
-                        missionIndexWhenReturnToAuto = currMissionIndex + 1;
                         gettimeofday(&startChasingBalloonTime, NULL);
 
                         currState = CHASING_BALLOON;
@@ -224,6 +229,7 @@ void Mission::HandleMission(Comm *comm) {
                 }
 
                 break;
+                
             case CHASING_BALLOON:
                 printf("-----------------------CHASING_BALLOON\n");
 
@@ -236,59 +242,96 @@ void Mission::HandleMission(Comm *comm) {
                 // (i.e., flight mode AUTO and state PREPROGRAMMED_MISSION). 
 
 
-                if (currFlightMode != GUIDED)
-                    printf("CurrFlightMode should be GUIDED, but is %d\n", currFlightMode);
-
-
-                mavlink_mission_item_t newCommand;
-                bool stillTrackingBalloon = CalcBalloonLocation(&newCommand);
-
-                if (!stillTrackingBalloon) {
-                    numIterationsWithoutSeeingBalloon++;
-                    printf("------------------numIterationsWithoutSeeingBalloon = %d\n", numIterationsWithoutSeeingBalloon);
-                }
-
-                if (numIterationsWithoutSeeingBalloon > MAX_ITERATIONS_WITHOUT_FINDING_BALLOON ||
-                        (currTime.tv_sec > startChasingBalloonTime.tv_sec + MAX_SECONDS_TO_CHASE_BALLOON)) {
-                    // If balloon disappears (hopefully popped) or time expires, resume to the preprogrammed mission.
-                    printf("-------------------------Balloon is gone or time expired.  Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
-                    printf("-------------------------numIterationsWithoutFindingBalloon %d, max iterations = %d.\n", numIterationsWithoutSeeingBalloon, MAX_ITERATIONS_WITHOUT_FINDING_BALLOON);
-                    comm->SendSetMode(int (AUTO));
-                    comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); // pixhawk probably remembers this, also.
-                    currState = PREPROGRAMMED_MISSION;
+                if (currFlightMode != GUIDED) {
+                    printf("CurrFlightMode should be GUIDED, but is %d.  Send request again.\n", currFlightMode);
+                    comm->SendSetMode(int (GUIDED));
 
                 } else {
 
-                    printf("*********(%f, %f, %f)\n", newCommand.x, newCommand.y, newCommand.z);
-                    PrintGlobalPosition();
+                    mavlink_mission_item_t newCommand;
+                    bool stillTrackingBalloon = CalcBalloonLocation(&newCommand);
 
-                    printf("-------------------------Sending guided wp.\n");
-                    newCommand.param1 = 0;
-                    newCommand.param2 = 0;
-                    newCommand.param3 = 0;
-                    newCommand.param4 = 0;
-
-                    newCommand.seq = 1;
-                    newCommand.command = 16;
-                    newCommand.frame = 3;
-                    newCommand.current = 2; // 2 = guided waypoint,  3 = altitude change only
-                    newCommand.autocontinue = 1;
-
-                    comm->SendMissionItem(newCommand); // send with current = 2, guided waypoint, only uses lat/lon
-
-                    if (newCommand.z > 0.5 && newCommand.z < 3.0) {   // Keep the altitude requests down to a reasonable limit.
-                        newCommand.current = 3;
-                        comm->SendMissionItem(newCommand); // send with current = 3, new altitude
-                    } else {
-                        printf("------------------------altitude is out of range.  Not changing altitude.  Request was %f\n", newCommand.z);
+                    if (!stillTrackingBalloon) {
+                        numIterationsWithoutSeeingBalloon++;
+                        printf("------------------numIterationsWithoutSeeingBalloon = %d\n", numIterationsWithoutSeeingBalloon);
                     }
 
+                    if (numIterationsWithoutSeeingBalloon > MAX_ITERATIONS_WITHOUT_FINDING_BALLOON ||
+                            (currTime.tv_sec > startChasingBalloonTime.tv_sec + MAX_SECONDS_TO_CHASE_BALLOON)) {
+                        // If balloon disappears (hopefully popped) or time expires, resume to the preprogrammed mission.
+                        printf("-------------------------Balloon is gone or time expired.  Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
+                        printf("-------------------------numIterationsWithoutFindingBalloon %d, max iterations = %d.\n", numIterationsWithoutSeeingBalloon, MAX_ITERATIONS_WITHOUT_FINDING_BALLOON);
+                        comm->SendSetMode(int (AUTO));
+                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); 
+                        currState = PREPROGRAMMED_MISSION;
+
+                    } else {
+
+                        printf("*********(%f, %f, %f)\n", newCommand.x, newCommand.y, newCommand.z);
+                        PrintGlobalPosition();
+
+                        numIterationsWithoutSeeingBalloon = 0;  // possibly only reset this if waypoint is valid.
+
+                        if (IsWaypointReasonable(&newCommand)) {
+                            newCommand.param1 = 0;
+                            newCommand.param2 = 0;
+                            newCommand.param3 = 0;
+                            newCommand.param4 = 0;
+
+                            newCommand.seq = 1;
+                            newCommand.command = 16;
+                            newCommand.frame = 3;
+                            newCommand.current = 2; // 2 = guided waypoint
+                            newCommand.autocontinue = 1;
+                            comm->SendMissionItem(newCommand);
+                            printf("-------------------------Sending guided wp.\n");
+                        } else {
+                            printf("-------------------------Not sending unreasonable guided wp.\n");
+                        }
+
+                    }
+                }
+                break;
+
+            case SWITCHING_BACK_TO_AUTO:
+                // Since it is critical that we can successfully switch back to AUTO,
+                // we have a separate state to make sure the switch happens.  Keep issuing the requests until
+                // until we are notified that the state successfully changed and we are running
+                // the desired command.
+                if (currFlightMode == AUTO && currMissionIndex >= missionIndexWhenReturnToAuto) {
+                    currState = PREPROGRAMMED_MISSION;
+                    
+                } else {
+                    printf("CurrFlightMode should be AUTO, but is %d.  Send request again.\n", currFlightMode);
+                    comm->SendSetMode(int (AUTO));
+                    if (currMissionIndex < missionIndexWhenReturnToAuto) {
+                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto);
+                        printf("-------------------------SWITCHING_BACK_TO_AUTO.  Switching from current mission item %d to %d.\n", currMissionIndex, missionIndexWhenReturnToAuto);
+                    }
                 }
 
                 break;
-
         }
     }
+}
+
+bool Mission::IsWaypointReasonable(mavlink_mission_item_t *command) {
+    const float MIN_REASONABLE_LAT = 40.0;
+    const float MAX_REASONABLE_LAT = 41.0;
+    const float MIN_REASONABLE_LON = -105.6;
+    const float MAX_REASONABLE_LON = -104.6;
+    const float MIN_REASONABLE_ALT = 0.5;
+    const float MAX_REASONABLE_ALT = 5.0;
+
+    // Keep the position requests within a reasonable limit.
+    if (command->x < MIN_REASONABLE_LAT || command->x > MAX_REASONABLE_LAT ||
+        command->y < MIN_REASONABLE_LON || command->y > MAX_REASONABLE_LON ||
+        command->z < MIN_REASONABLE_ALT || command->z > MAX_REASONABLE_ALT) {
+        printf("------------------------lat/lon/alt is out of range.  Request was %f, %f, %f\n", command->x, command->y, command->z);
+        return false;
+    }
+
+    return true;
 }
 
 bool Mission::IsBalloonNearby() {
@@ -311,7 +354,7 @@ bool Mission::IsBalloonNearby() {
         return true;
     }
 
-    printf("------------------Balloon is not is range.  Range = %f\n", range);
+    printf("------------------Balloon is not in range.  Range = %f\n", range);
     return false;
 }
 
@@ -347,7 +390,7 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   printf("In CalcBalloonLocation, theta = %f, phi = %f, range = %f\n", theta, phi, rho);
 
   // Return false if the balloon is gone.
-  if (rho < 0)
+  if (rho < 0 || rho > MAX_DISTANCE_TO_BALLOON)
       return false;
   
   double latlen = m1+m2*cos(2*latrad)+m3*cos(4*latrad)+m4*cos(6*latrad);
