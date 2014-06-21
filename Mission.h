@@ -67,6 +67,7 @@ private:
     FlightMode currFlightMode;
 
     long GetTimeDelta(struct timeval timea, struct timeval timeb);
+    void SwitchToAuto(Comm *comm);
     bool IsWaypointReasonable(mavlink_mission_item_t * command);
     bool IsBalloonNearby();
     bool CalcBalloonLocation(mavlink_mission_item_t *item);

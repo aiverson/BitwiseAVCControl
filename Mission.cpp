@@ -206,14 +206,7 @@ void Mission::HandleMission(Comm *comm) {
                 // back to PREPROGRAMMED_MISSION mode.
                 if (currTime.tv_sec > startSearchingForBalloonTime.tv_sec + MAX_SECONDS_TO_SEARCH_FOR_BALLOON ||
                         currMissionIndex > missionIndexWhenReturnToAuto) {
-                    comm->SendSetMode(int (AUTO));
-                    if (currMissionIndex < missionIndexWhenReturnToAuto) {
-                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto);
-                        printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Switching from current mission item %d to %d.\n", currMissionIndex, missionIndexWhenReturnToAuto);
-                    }
-                    printf("-------------------------Can't find balloon.  Returning to PREPROGRAMMED_MISSION mode.  Continuing with current mission item %d.\n", currMissionIndex);
-
-                    currState = PREPROGRAMMED_MISSION;
+                    SwitchToAuto(comm);
 
                 } else if (currFlightMode == AUTO) {
 
@@ -261,9 +254,7 @@ void Mission::HandleMission(Comm *comm) {
                         // If balloon disappears (hopefully popped) or time expires, resume to the preprogrammed mission.
                         printf("-------------------------Balloon is gone or time expired.  Returning to AUTO mode.  Continuing with mission item %d.\n", currMissionIndex + 1);
                         printf("-------------------------numIterationsWithoutFindingBalloon %d, max iterations = %d.\n", numIterationsWithoutSeeingBalloon, MAX_ITERATIONS_WITHOUT_FINDING_BALLOON);
-                        comm->SendSetMode(int (AUTO));
-                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto); 
-                        currState = PREPROGRAMMED_MISSION;
+                        SwitchToAuto(comm);
 
                     } else {
 
@@ -294,6 +285,7 @@ void Mission::HandleMission(Comm *comm) {
                 break;
 
             case SWITCHING_BACK_TO_AUTO:
+                printf("-----------------------SWITCHING_BACK_TO_AUTO\n");
                 // Since it is critical that we can successfully switch back to AUTO,
                 // we have a separate state to make sure the switch happens.  Keep issuing the requests until
                 // until we are notified that the state successfully changed and we are running
@@ -302,16 +294,22 @@ void Mission::HandleMission(Comm *comm) {
                     currState = PREPROGRAMMED_MISSION;
                     
                 } else {
-                    printf("CurrFlightMode should be AUTO, but is %d.  Send request again.\n", currFlightMode);
-                    comm->SendSetMode(int (AUTO));
-                    if (currMissionIndex < missionIndexWhenReturnToAuto) {
-                        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto);
-                        printf("-------------------------SWITCHING_BACK_TO_AUTO.  Switching from current mission item %d to %d.\n", currMissionIndex, missionIndexWhenReturnToAuto);
-                    }
+                    SwitchToAuto(comm);
                 }
 
                 break;
         }
+    }
+}
+
+void Mission::SwitchToAuto(Comm *comm) {
+    currState = SWITCHING_BACK_TO_AUTO;
+
+    printf("CurrFlightMode should be AUTO, but is %d.  Send request.\n", currFlightMode);
+    comm->SendSetMode(int (AUTO));
+    if (currMissionIndex < missionIndexWhenReturnToAuto) {
+        comm->SendMissionSetCurrent(missionIndexWhenReturnToAuto);
+        printf("-------------------------SWITCHING_BACK_TO_AUTO.  Switching from current mission item %d to %d.\n", currMissionIndex, missionIndexWhenReturnToAuto);
     }
 }
 
