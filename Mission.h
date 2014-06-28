@@ -20,7 +20,7 @@ class Comm;
 enum FlightMode { STABILIZE = 0, AUTO = 3, GUIDED = 4, OTHER = 99};
 
 const float MAX_DISTANCE_TO_BALLOON = 50.0;  // meters
-const long MAX_SECONDS_TO_CHASE_BALLOON = 20;
+const long MAX_SECONDS_TO_CHASE_BALLOON = 10;
 const long MAX_SECONDS_TO_SEARCH_FOR_BALLOON = 20;
 const long ITERATIONS_PER_SECOND = 10;
 const long TIME_BETWEEN_UPDATES = 1000000 / ITERATIONS_PER_SECOND;
@@ -44,7 +44,7 @@ public:
     void HandleMission(Comm *comm);
 private:
 
-    enum MissionState { INITIALIZE, PREPROGRAMMED_MISSION, SEARCHING_FOR_BALLOON, CHASING_BALLOON, SWITCHING_BACK_TO_AUTO };
+    enum MissionState { INITIALIZE, PREPROGRAMMED_MISSION, SEARCHING_FOR_BALLOON, CHASING_BALLOON, SWITCHING_BACK_TO_AUTO, SWITCHING_TO_GUIDED };
 
     MissionState currState;
     int loopCounter;

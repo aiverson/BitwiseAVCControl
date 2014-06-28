@@ -214,15 +214,23 @@ void Mission::HandleMission(Comm *comm) {
 
                         printf("-------------------------Found a balloon.  Requesting mode change to GUIDED.\n");
                         comm->SendSetMode(int (GUIDED));
-                        gettimeofday(&startChasingBalloonTime, NULL);
-
-                        currState = CHASING_BALLOON;
+                        currState = SWITCHING_TO_GUIDED;
                         numIterationsWithoutSeeingBalloon = 0;
                     }
                 }
 
                 break;
                 
+            case SWITCHING_TO_GUIDED:
+                if (currFlightMode != GUIDED) {
+                    printf("CurrFlightMode should be GUIDED, but is %d.  Send request again.\n", currFlightMode);
+                    comm->SendSetMode(int (GUIDED));
+                } else {
+                    currState = CHASING_BALLOON;
+                    gettimeofday(&startChasingBalloonTime, NULL);
+                }
+                break;
+
             case CHASING_BALLOON:
                 printf("-----------------------CHASING_BALLOON\n");
 
@@ -234,10 +242,11 @@ void Mission::HandleMission(Comm *comm) {
                 // If balloon disappears (hopefully popped) or time expires, resume the preprogrammed mission,
                 // (i.e., flight mode AUTO and state PREPROGRAMMED_MISSION). 
 
-
                 if (currFlightMode != GUIDED) {
-                    printf("CurrFlightMode should be GUIDED, but is %d.  Send request again.\n", currFlightMode);
-                    comm->SendSetMode(int (GUIDED));
+                    // If we are no longer in guided mode, an external command must have changed the mode.
+                    // Abort the balloon chase.
+                    printf("CurrFlightMode should be GUIDED, but is %d.  .\n", currFlightMode);
+                    currState = PREPROGRAMMED_MISSION;
 
                 } else {
 
@@ -298,6 +307,7 @@ void Mission::HandleMission(Comm *comm) {
                 }
 
                 break;
+
         }
     }
 }
@@ -380,12 +390,13 @@ bool Mission::CalcBalloonLocation(mavlink_mission_item_t *item)
   double alt = globalPosition.relative_alt/1000.0;
   double pitch = attitude.pitch;
   double yaw = attitude.yaw;
-  double rho = location.range;
+  double range = location.range;
+  double rho = range - 1.0;  // stop 1 meter before the balloon
   double phi = location.phi;
   double theta = location.theta;
   pthread_mutex_unlock(&locationLock);
 
-  printf("In CalcBalloonLocation, theta = %f, phi = %f, range = %f\n", theta, phi, rho);
+  printf("In CalcBalloonLocation, theta = %f, phi = %f, range orig = %f, rho = %f\n", theta, phi, range, rho);
 
   // Return false if the balloon is gone.
   if (rho < 0 || rho > MAX_DISTANCE_TO_BALLOON)
